@@ -12,7 +12,9 @@ import { ProductosPlanSection } from "./components/productos-plan-section"
 import { ProductosPlanesSection } from "./components/productos-planes-section"
 import { ConfiguracionZonas } from "./components/configuracion-zonas"
 import { BannerConfig } from "./components/banner-config"
+import { LogoConfig } from "./components/logo-config"
 import { useSupabaseData } from "./hooks/use-supabase-data"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { UserButton, useUser } from "@clerk/nextjs"
@@ -36,6 +38,7 @@ function Dashboard() {
     categorias,
     marcas,
     zonas,
+    configuracion,
     configuracionZonas,
     configuracionWeb,
     loading, 
@@ -67,6 +70,7 @@ function Dashboard() {
     updateProductoPlanDefault,
     deleteProductoPlanDefault,
     getCategoriasDePlan,
+    updateConfiguracion,
     updateConfiguracionWeb,
     refreshData
   } = useSupabaseData()
@@ -235,19 +239,37 @@ function Dashboard() {
         )
       case "configuracion":
         return (
-          <div className="space-y-6">
-            <BannerConfig
-              configuracionWeb={configuracionWeb}
-              onUpdateConfiguracionWeb={updateConfiguracionWeb}
-            />
-            <ConfiguracionZonas
-              zonas={zonas}
-              configuracionZonas={configuracionZonas}
-              onCreateConfiguracionZona={createConfiguracionZona}
-              onUpdateConfiguracionZona={updateConfiguracionZona}
-              onDeleteConfiguracionZona={deleteConfiguracionZona}
-            />
-          </div>
+          <Tabs defaultValue="web" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="web">Configuración Catálogo</TabsTrigger>
+              <TabsTrigger value="agente">Configuración del Agente</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="web" className="space-y-6">
+              <LogoConfig
+                configuracion={configuracion}
+                onUpdateConfiguracion={updateConfiguracion}
+              />
+              <BannerConfig
+                configuracionWeb={configuracionWeb}
+                onUpdateConfiguracionWeb={updateConfiguracionWeb}
+              />
+              <ConfiguracionZonas
+                zonas={zonas}
+                configuracionZonas={configuracionZonas}
+                onCreateConfiguracionZona={createConfiguracionZona}
+                onUpdateConfiguracionZona={updateConfiguracionZona}
+                onDeleteConfiguracionZona={deleteConfiguracionZona}
+              />
+            </TabsContent>
+            
+            <TabsContent value="agente" className="space-y-6">
+              <div className="text-center py-12 text-gray-500">
+                <p className="text-lg font-medium">Configuración del Agente</p>
+                <p className="text-sm mt-2">Esta sección estará disponible próximamente</p>
+              </div>
+            </TabsContent>
+          </Tabs>
         )
       default:
         return <DashboardSection productos={productos} planes={planes} productosPorPlan={productosPorPlan} />
@@ -256,7 +278,7 @@ function Dashboard() {
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar configuracion={configuracion} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />

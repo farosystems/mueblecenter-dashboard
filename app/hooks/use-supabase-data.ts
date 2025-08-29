@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, ConfiguracionZona, ConfiguracionWeb, PlanCategoria } from '@/lib/supabase'
+import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria } from '@/lib/supabase'
 import { testSupabaseConnection } from '@/lib/supabase-debug'
 import { setupSupabaseAuth } from '@/lib/supabase-auth'
 import { useUser } from '@clerk/nextjs'
@@ -16,6 +16,7 @@ export function useSupabaseData() {
   const [planesCategorias, setPlanesCategorias] = useState<PlanCategoria[]>([])
   const [marcas, setMarcas] = useState<Marca[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
+  const [configuracion, setConfiguracion] = useState<Configuracion | null>(null)
   const [configuracionZonas, setConfiguracionZonas] = useState<ConfiguracionZona[]>([])
   const [configuracionWeb, setConfiguracionWeb] = useState<ConfiguracionWeb | null>(null)
   const [loading, setLoading] = useState(true)
@@ -824,6 +825,64 @@ export function useSupabaseData() {
     }
   }
 
+  // Cargar configuración general
+  const loadConfiguracion = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('configuracion')
+        .select('*')
+        .limit(1)
+        .single()
+
+      if (error && error.code !== 'PGRST116') throw error
+      setConfiguracion(data)
+    } catch (err) {
+      setError('Error al cargar configuración')
+      console.error('Error loading configuracion:', err)
+    }
+  }
+
+  // Actualizar configuración general
+  const updateConfiguracion = async (updates: Partial<Pick<Configuracion, 'logo' | 'titulo' | 'subtitulo'>>) => {
+    try {
+      let { data, error } = await supabase
+        .from('configuracion')
+        .select('*')
+        .limit(1)
+        .single()
+
+      if (error && error.code === 'PGRST116') {
+        // Si no existe, crear el registro
+        const { data: newData, error: insertError } = await supabase
+          .from('configuracion')
+          .insert([updates])
+          .select()
+          .single()
+
+        if (insertError) throw insertError
+        setConfiguracion(newData)
+        return newData
+      } else if (error) {
+        throw error
+      } else {
+        // Si existe, actualizar
+        const { data: updatedData, error: updateError } = await supabase
+          .from('configuracion')
+          .update(updates)
+          .eq('id', data.id)
+          .select()
+          .single()
+
+        if (updateError) throw updateError
+        setConfiguracion(updatedData)
+        return updatedData
+      }
+    } catch (err) {
+      setError('Error al actualizar configuración')
+      console.error('Error updating configuracion:', err)
+      throw err
+    }
+  }
 
   // Cargar configuración web
   const loadConfiguracionWeb = async () => {
@@ -912,6 +971,7 @@ export function useSupabaseData() {
             loadPlanesCategorias(),
             loadMarcas(),
             loadZonas(),
+            loadConfiguracion(),
             loadConfiguracionZonas(),
             loadConfiguracionWeb()
           ]).finally(() => setLoading(false))
@@ -959,6 +1019,8 @@ export function useSupabaseData() {
     deleteProductoPlanDefault,
     createDefaultAssociationsForProduct,
     getCategoriasDePlan,
+    configuracion,
+    updateConfiguracion,
     configuracionWeb,
     updateConfiguracionWeb,
     refreshData: () => {
@@ -972,6 +1034,7 @@ export function useSupabaseData() {
         loadPlanesCategorias(),
         loadMarcas(),
         loadZonas(),
+        loadConfiguracion(),
         loadConfiguracionZonas(),
         loadConfiguracionWeb()
       ]).finally(() => setLoading(false))

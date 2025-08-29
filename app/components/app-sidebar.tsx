@@ -13,6 +13,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { Configuracion } from "@/lib/supabase"
+import Image from "next/image"
 
 const menuItems = [
   {
@@ -62,17 +64,37 @@ const menuItems = [
   },
 ]
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  configuracion?: Configuracion | null
+}
+
+export function AppSidebar({ configuracion }: AppSidebarProps) {
+  const titulo = configuracion?.titulo || "Dashboard"
+  const subtitulo = configuracion?.subtitulo || "Panel Admin"
+  const logo = configuracion?.logo
+
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-4 py-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <CreditCard className="h-4 w-4" />
-          </div>
+          {logo ? (
+            <div className="flex h-8 w-8 items-center justify-center">
+              <Image
+                src={logo}
+                alt="Logo"
+                width={32}
+                height={32}
+                className="w-8 h-8 object-contain"
+              />
+            </div>
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <CreditCard className="h-4 w-4" />
+            </div>
+          )}
           <div className="flex flex-col">
-            <span className="text-lg font-semibold">Dashboard</span>
-            <span className="text-xs text-muted-foreground">Panel Admin</span>
+            <span className="text-lg font-semibold">{titulo}</span>
+            <span className="text-xs text-muted-foreground">{subtitulo}</span>
           </div>
         </div>
       </SidebarHeader>

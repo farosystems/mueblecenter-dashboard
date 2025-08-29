@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Plus, Edit, Trash2, Search, Filter } from "lucide-react"
+import { Plus, Edit, Trash2, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -36,6 +36,10 @@ export const ProductosPlanesSection = React.memo(({
   const [filterProducto, setFilterProducto] = useState("all")
   const [filterPlan, setFilterPlan] = useState("all")
   const [filterActivo, setFilterActivo] = useState<string>("all")
+  
+  // Estado para paginación
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   const [formData, setFormData] = useState({
     fk_id_producto: undefined as string | undefined,
@@ -130,6 +134,26 @@ export const ProductosPlanesSection = React.memo(({
 
     return matchesSearch && matchesProducto && matchesPlan && matchesActivo
   })
+
+  // Calcular paginación
+  const totalPages = Math.ceil(filteredData.length / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedData = filteredData.slice(startIndex, endIndex)
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, filterProducto, filterPlan, filterActivo, pageSize])
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+  }
+
+  const handlePageSizeChange = (newPageSize: string) => {
+    setPageSize(parseInt(newPageSize))
+    setCurrentPage(1)
+  }
 
   return (
     <>
@@ -284,7 +308,7 @@ export const ProductosPlanesSection = React.memo(({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredData.map((item) => {
+              {paginatedData.map((item) => {
                 const producto = productos.find(p => p.id === item.fk_id_producto)
                 const plan = planes.find(pl => pl.id === item.fk_id_plan)
                 
@@ -321,6 +345,85 @@ export const ProductosPlanesSection = React.memo(({
               })}
             </TableBody>
           </Table>
+
+          {/* Controles de Paginación */}
+          {filteredData.length > 0 && (
+            <div className="flex items-center justify-between mt-4 px-2">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  Mostrando {startIndex + 1} - {Math.min(endIndex, filteredData.length)} de {filteredData.length} resultados
+                </span>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-gray-600">Filas por página:</span>
+                  <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5</SelectItem>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="20">20</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNumber
+                      if (totalPages <= 5) {
+                        pageNumber = i + 1
+                      } else if (currentPage <= 3) {
+                        pageNumber = i + 1
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNumber = totalPages - 4 + i
+                      } else {
+                        pageNumber = currentPage - 2 + i
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNumber}
+                          variant={pageNumber === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNumber)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNumber}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+                
+                <span className="text-sm text-gray-600">
+                  Página {currentPage} de {totalPages}
+                </span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

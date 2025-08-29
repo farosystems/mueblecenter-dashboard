@@ -100,6 +100,16 @@ export interface Zona {
   created_at: string
 }
 
+// Tipo para la configuración general
+export interface Configuracion {
+  id: number
+  created_at: string
+  updated_at: string
+  logo: string | null
+  titulo: string | null
+  subtitulo: string | null
+}
+
 // Tipo para la configuración de zonas
 export interface ConfiguracionZona {
   id: number
