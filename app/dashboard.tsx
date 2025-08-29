@@ -11,6 +11,7 @@ import { PlanesSection } from "./components/planes-section"
 import { ProductosPlanSection } from "./components/productos-plan-section"
 import { ProductosPlanesSection } from "./components/productos-planes-section"
 import { ConfiguracionZonas } from "./components/configuracion-zonas"
+import { BannerConfig } from "./components/banner-config"
 import { useSupabaseData } from "./hooks/use-supabase-data"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
@@ -35,8 +36,8 @@ function Dashboard() {
     categorias,
     marcas,
     zonas,
-    configuracion,
     configuracionZonas,
+    configuracionWeb,
     loading, 
     error,
     createProducto,
@@ -66,7 +67,7 @@ function Dashboard() {
     updateProductoPlanDefault,
     deleteProductoPlanDefault,
     getCategoriasDePlan,
-    updateConfiguracion,
+    updateConfiguracionWeb,
     refreshData
   } = useSupabaseData()
 
@@ -235,6 +236,10 @@ function Dashboard() {
       case "configuracion":
         return (
           <div className="space-y-6">
+            <BannerConfig
+              configuracionWeb={configuracionWeb}
+              onUpdateConfiguracionWeb={updateConfiguracionWeb}
+            />
             <ConfiguracionZonas
               zonas={zonas}
               configuracionZonas={configuracionZonas}

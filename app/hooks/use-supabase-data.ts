@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, PlanCategoria } from '@/lib/supabase'
+import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, ConfiguracionZona, ConfiguracionWeb, PlanCategoria } from '@/lib/supabase'
 import { testSupabaseConnection } from '@/lib/supabase-debug'
 import { setupSupabaseAuth } from '@/lib/supabase-auth'
 import { useUser } from '@clerk/nextjs'
@@ -16,8 +16,8 @@ export function useSupabaseData() {
   const [planesCategorias, setPlanesCategorias] = useState<PlanCategoria[]>([])
   const [marcas, setMarcas] = useState<Marca[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
-  const [configuracion, setConfiguracion] = useState<Configuracion | null>(null)
   const [configuracionZonas, setConfiguracionZonas] = useState<ConfiguracionZona[]>([])
+  const [configuracionWeb, setConfiguracionWeb] = useState<ConfiguracionWeb | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -824,28 +824,29 @@ export function useSupabaseData() {
     }
   }
 
-  // Cargar configuración
-  const loadConfiguracion = async () => {
+
+  // Cargar configuración web
+  const loadConfiguracionWeb = async () => {
     try {
       const { data, error } = await supabase
-        .from('configuracion')
+        .from('configuracion_web')
         .select('*')
         .limit(1)
         .single()
 
-      if (error) throw error
-      setConfiguracion(data)
+      if (error && error.code !== 'PGRST116') throw error
+      setConfiguracionWeb(data)
     } catch (err) {
-      setError('Error al cargar configuración')
-      console.error('Error loading configuracion:', err)
+      setError('Error al cargar configuración web')
+      console.error('Error loading configuracion_web:', err)
     }
   }
 
-  // Actualizar configuración
-  const updateConfiguracion = async (telefono: string) => {
+  // Actualizar configuración web
+  const updateConfiguracionWeb = async (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3'>>) => {
     try {
       let { data, error } = await supabase
-        .from('configuracion')
+        .from('configuracion_web')
         .select('*')
         .limit(1)
         .single()
@@ -853,32 +854,32 @@ export function useSupabaseData() {
       if (error && error.code === 'PGRST116') {
         // Si no existe, crear el registro
         const { data: newData, error: insertError } = await supabase
-          .from('configuracion')
-          .insert([{ telefono }])
+          .from('configuracion_web')
+          .insert([updates])
           .select()
           .single()
 
         if (insertError) throw insertError
-        setConfiguracion(newData)
+        setConfiguracionWeb(newData)
         return newData
       } else if (error) {
         throw error
       } else {
         // Si existe, actualizar
         const { data: updatedData, error: updateError } = await supabase
-          .from('configuracion')
-          .update({ telefono })
+          .from('configuracion_web')
+          .update(updates)
           .eq('id', data.id)
           .select()
           .single()
 
         if (updateError) throw updateError
-        setConfiguracion(updatedData)
+        setConfiguracionWeb(updatedData)
         return updatedData
       }
     } catch (err) {
-      setError('Error al actualizar configuración')
-      console.error('Error updating configuracion:', err)
+      setError('Error al actualizar configuración web')
+      console.error('Error updating configuracion_web:', err)
       throw err
     }
   }
@@ -912,7 +913,7 @@ export function useSupabaseData() {
             loadMarcas(),
             loadZonas(),
             loadConfiguracionZonas(),
-            loadConfiguracion()
+            loadConfiguracionWeb()
           ]).finally(() => setLoading(false))
         })
       })
@@ -958,8 +959,8 @@ export function useSupabaseData() {
     deleteProductoPlanDefault,
     createDefaultAssociationsForProduct,
     getCategoriasDePlan,
-    configuracion,
-    updateConfiguracion,
+    configuracionWeb,
+    updateConfiguracionWeb,
     refreshData: () => {
       setLoading(true)
       Promise.all([
@@ -972,7 +973,7 @@ export function useSupabaseData() {
         loadMarcas(),
         loadZonas(),
         loadConfiguracionZonas(),
-        loadConfiguracion()
+        loadConfiguracionWeb()
       ]).finally(() => setLoading(false))
     }
   }

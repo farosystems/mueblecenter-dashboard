@@ -100,13 +100,6 @@ export interface Zona {
   created_at: string
 }
 
-// Tipo para la configuración
-export interface Configuracion {
-  id: number
-  created_at: string
-  telefono: string | null
-}
-
 // Tipo para la configuración de zonas
 export interface ConfiguracionZona {
   id: number
@@ -114,4 +107,14 @@ export interface ConfiguracionZona {
   telefono: string
   created_at: string
   zona?: Zona
+}
+
+// Tipo para la configuración web
+export interface ConfiguracionWeb {
+  id: number
+  created_at: string
+  updated_at: string
+  banner: string | null
+  banner_2: string | null
+  banner_3: string | null
 } 
