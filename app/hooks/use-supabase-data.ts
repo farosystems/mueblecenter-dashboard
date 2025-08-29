@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria } from '@/lib/supabase'
+import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria, StockSucursal } from '@/lib/supabase'
 import { testSupabaseConnection } from '@/lib/supabase-debug'
 import { setupSupabaseAuth } from '@/lib/supabase-auth'
 import { useUser } from '@clerk/nextjs'
@@ -16,6 +16,7 @@ export function useSupabaseData() {
   const [planesCategorias, setPlanesCategorias] = useState<PlanCategoria[]>([])
   const [marcas, setMarcas] = useState<Marca[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
+  const [stockSucursales, setStockSucursales] = useState<StockSucursal[]>([])
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null)
   const [configuracionZonas, setConfiguracionZonas] = useState<ConfiguracionZona[]>([])
   const [configuracionWeb, setConfiguracionWeb] = useState<ConfiguracionWeb | null>(null)
@@ -163,6 +164,26 @@ export function useSupabaseData() {
     } catch (err) {
       setError('Error al cargar zonas')
       console.error('Error loading zonas:', err)
+    }
+  }
+
+  // Cargar stock por sucursales
+  const loadStockSucursales = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_sucursales')
+        .select(`
+          *,
+          producto:fk_id_producto(*),
+          zona:fk_id_zona(*)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setStockSucursales(data || [])
+    } catch (err) {
+      setError('Error al cargar stock por sucursales')
+      console.error('Error loading stock_sucursales:', err)
     }
   }
 
@@ -528,6 +549,163 @@ export function useSupabaseData() {
     } catch (err) {
       setError('Error al eliminar zona')
       console.error('Error deleting zona:', err)
+      throw err
+    }
+  }
+
+  // Crear stock sucursal
+  const createStockSucursal = async (stockSucursal: Omit<StockSucursal, 'id' | 'created_at' | 'updated_at' | 'producto' | 'zona'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_sucursales')
+        .insert([stockSucursal])
+        .select()
+
+      if (error) throw error
+      await loadStockSucursales()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al crear stock sucursal')
+      console.error('Error creating stock_sucursal:', err)
+      throw err
+    }
+  }
+
+  // Actualizar stock sucursal
+  const updateStockSucursal = async (id: number, updates: Partial<StockSucursal>) => {
+    try {
+      const { data, error } = await supabase
+        .from('stock_sucursales')
+        .update(updates)
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      await loadStockSucursales()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al actualizar stock sucursal')
+      console.error('Error updating stock_sucursal:', err)
+      throw err
+    }
+  }
+
+  // Eliminar stock sucursal
+  const deleteStockSucursal = async (id: number) => {
+    try {
+      const { error } = await supabase
+        .from('stock_sucursales')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await loadStockSucursales()
+    } catch (err) {
+      setError('Error al eliminar stock sucursal')
+      console.error('Error deleting stock_sucursal:', err)
+      throw err
+    }
+  }
+
+  // Importar stock sucursales desde CSV/XLSX
+  const importStockSucursales = async (data: any[]) => {
+    try {
+      console.log('Importando stock sucursales:', data)
+      
+      // Validar que los datos tienen los campos requeridos
+      const validData = data.filter(item => 
+        item.fk_id_producto && 
+        item.fk_id_zona && 
+        item.stock !== undefined
+      )
+
+      if (validData.length === 0) {
+        throw new Error('No hay datos válidos para importar')
+      }
+
+      // Obtener todos los registros existentes de una vez
+      const { data: existingRecords, error: fetchError } = await supabase
+        .from('stock_sucursales')
+        .select('id, fk_id_producto, fk_id_zona')
+
+      if (fetchError) {
+        console.error('Error obteniendo registros existentes:', fetchError)
+        throw fetchError
+      }
+
+      // Crear un mapa para búsqueda rápida
+      const existingMap = new Map()
+      existingRecords?.forEach(record => {
+        const key = `${record.fk_id_producto}-${record.fk_id_zona}`
+        existingMap.set(key, record.id)
+      })
+
+      const toInsert: any[] = []
+      const toUpdate: any[] = []
+
+      // Clasificar datos en insertar vs actualizar
+      validData.forEach(item => {
+        const key = `${item.fk_id_producto}-${item.fk_id_zona}`
+        const existingId = existingMap.get(key)
+        
+        if (existingId) {
+          toUpdate.push({ ...item, id: existingId })
+        } else {
+          toInsert.push(item)
+        }
+      })
+
+      let insertedCount = 0
+      let updatedCount = 0
+
+      // Insertar nuevos registros
+      if (toInsert.length > 0) {
+        const { error: insertError } = await supabase
+          .from('stock_sucursales')
+          .insert(toInsert)
+        
+        if (insertError) {
+          console.error('Error insertando registros:', insertError)
+          throw insertError
+        }
+        insertedCount = toInsert.length
+      }
+
+      // Actualizar registros existentes (uno por uno debido a limitaciones de Supabase)
+      for (const item of toUpdate) {
+        try {
+          const { id, ...updateData } = item
+          const { error: updateError } = await supabase
+            .from('stock_sucursales')
+            .update(updateData)
+            .eq('id', id)
+          
+          if (updateError) {
+            console.error('Error actualizando registro:', updateError)
+            continue
+          }
+          updatedCount++
+        } catch (error) {
+          console.error('Error en actualización individual:', error)
+          continue
+        }
+      }
+
+      console.log(`Importación completada: ${insertedCount} nuevos, ${updatedCount} actualizados`)
+      
+      await loadStockSucursales()
+      console.log(`Se procesaron ${insertedCount + updatedCount} registros de stock (${insertedCount} nuevos, ${updatedCount} actualizados)`)
+      
+      return {
+        success: true,
+        imported: insertedCount + updatedCount,
+        inserted: insertedCount,
+        updated: updatedCount,
+        total: data.length
+      }
+    } catch (err) {
+      setError('Error al importar stock sucursales')
+      console.error('Error importing stock_sucursales:', err)
       throw err
     }
   }
@@ -971,6 +1149,7 @@ export function useSupabaseData() {
             loadPlanesCategorias(),
             loadMarcas(),
             loadZonas(),
+            loadStockSucursales(),
             loadConfiguracion(),
             loadConfiguracionZonas(),
             loadConfiguracionWeb()
@@ -988,6 +1167,7 @@ export function useSupabaseData() {
     categorias,
     marcas,
     zonas,
+    stockSucursales,
     configuracionZonas,
     loading,
     error,
@@ -1008,6 +1188,10 @@ export function useSupabaseData() {
     createZona,
     updateZona,
     deleteZona,
+    createStockSucursal,
+    updateStockSucursal,
+    deleteStockSucursal,
+    importStockSucursales,
     createConfiguracionZona,
     updateConfiguracionZona,
     deleteConfiguracionZona,
@@ -1034,6 +1218,7 @@ export function useSupabaseData() {
         loadPlanesCategorias(),
         loadMarcas(),
         loadZonas(),
+        loadStockSucursales(),
         loadConfiguracion(),
         loadConfiguracionZonas(),
         loadConfiguracionWeb()

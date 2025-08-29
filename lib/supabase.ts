@@ -9,6 +9,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export interface Categoria {
   id: number
   descripcion: string
+  logo?: string
   created_at: string
 }
 
@@ -127,4 +128,19 @@ export interface ConfiguracionWeb {
   banner: string | null
   banner_2: string | null
   banner_3: string | null
+  banner_principal: string | null
+}
+
+// Tipo para stock por sucursales
+export interface StockSucursal {
+  id: number
+  created_at: string
+  updated_at: string
+  fk_id_producto: number
+  fk_id_zona: number
+  stock: number
+  stock_minimo: number | null
+  activo: boolean
+  producto?: Producto
+  zona?: Zona
 } 

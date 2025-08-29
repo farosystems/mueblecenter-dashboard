@@ -14,10 +14,10 @@ import Image from "next/image"
 
 interface BannerConfigProps {
   configuracionWeb: ConfiguracionWeb | null
-  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3'>>) => Promise<any>
+  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>>) => Promise<any>
 }
 
-type BannerKey = 'banner' | 'banner_2' | 'banner_3'
+type BannerKey = 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'
 
 interface BannerState {
   url: string
@@ -33,7 +33,8 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
   const [banners, setBanners] = useState<Record<BannerKey, BannerState>>({
     banner: { url: "", isDragOver: false, isLoading: false },
     banner_2: { url: "", isDragOver: false, isLoading: false },
-    banner_3: { url: "", isDragOver: false, isLoading: false }
+    banner_3: { url: "", isDragOver: false, isLoading: false },
+    banner_principal: { url: "", isDragOver: false, isLoading: false }
   })
 
   useEffect(() => {
@@ -51,6 +52,11 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
         },
         banner_3: { 
           url: configuracionWeb.banner_3 || "", 
+          isDragOver: false, 
+          isLoading: false 
+        },
+        banner_principal: { 
+          url: configuracionWeb.banner_principal || "", 
           isDragOver: false, 
           isLoading: false 
         }
@@ -128,10 +134,11 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
   }
 
   const handleSave = async () => {
-    const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3'>> = {
+    const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>> = {
       banner: banners.banner.url || null,
       banner_2: banners.banner_2.url || null,
-      banner_3: banners.banner_3.url || null
+      banner_3: banners.banner_3.url || null,
+      banner_principal: banners.banner_principal.url || null
     }
 
     try {
@@ -143,8 +150,35 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
     }
   }
 
-  const handleRemoveBanner = (bannerKey: BannerKey) => {
-    updateBannerState(bannerKey, { url: "" })
+  const handleUrlSubmit = async (bannerKey: BannerKey) => {
+    if (!banners[bannerKey].url) return
+
+    updateBannerState(bannerKey, { isLoading: true })
+    
+    try {
+      const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>> = {}
+      updates[bannerKey] = banners[bannerKey].url
+
+      await onUpdateConfiguracionWeb(updates)
+    } catch (error) {
+      console.error(`Error al guardar ${getBannerName(bannerKey)}:`, error)
+      alert(`Error al guardar ${getBannerName(bannerKey)}`)
+    } finally {
+      updateBannerState(bannerKey, { isLoading: false })
+    }
+  }
+
+  const handleRemoveBanner = async (bannerKey: BannerKey) => {
+    try {
+      const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>> = {}
+      updates[bannerKey] = null
+
+      await onUpdateConfiguracionWeb(updates)
+      updateBannerState(bannerKey, { url: "" })
+    } catch (error) {
+      console.error(`Error al eliminar ${getBannerName(bannerKey)}:`, error)
+      alert(`Error al eliminar ${getBannerName(bannerKey)}`)
+    }
   }
 
   const getBannerName = (key: BannerKey) => {
@@ -152,6 +186,8 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
       case 'banner': return 'Banner 1'
       case 'banner_2': return 'Banner 2' 
       case 'banner_3': return 'Banner 3'
+      case 'banner_principal': return 'Banner Principal'
+      default: return 'Banner'
     }
   }
 
@@ -376,6 +412,143 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
                 <p className="text-sm">Haz clic en "Configurar" para agregar hasta 3 banners</p>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Banner Principal */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-5 w-5" />
+            Banner Principal
+            {banners.banner_principal.url && (
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {banners.banner_principal.url ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-gray-700">
+                    Banner Principal Actual
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveBanner('banner_principal')}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="border rounded-lg overflow-hidden bg-gray-50">
+                  <Image
+                    src={banners.banner_principal.url}
+                    alt="Banner Principal actual"
+                    width={800}
+                    height={200}
+                    className="w-full h-32 object-cover"
+                  />
+                </div>
+                <p className="text-xs text-gray-500 break-all">
+                  {banners.banner_principal.url}
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <ImageIcon className="mx-auto h-12 w-12 text-gray-300 mb-2" />
+                <p>No hay banner principal configurado</p>
+              </div>
+            )}
+
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="font-medium">Subir nuevo banner principal</h4>
+              
+              <div className="flex gap-2">
+                <Button
+                  variant={uploadMode === 'file' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setUploadMode('file')}
+                >
+                  Subir archivo
+                </Button>
+                <Button
+                  variant={uploadMode === 'url' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setUploadMode('url')}
+                >
+                  URL externa
+                </Button>
+              </div>
+
+              {uploadMode === 'file' ? (
+                <div className="space-y-2">
+                  <div
+                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                      banners.banner_principal.isDragOver 
+                        ? 'border-blue-400 bg-blue-50' 
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      updateBannerState('banner_principal', { isDragOver: true })
+                    }}
+                    onDragLeave={() => {
+                      updateBannerState('banner_principal', { isDragOver: false })
+                    }}
+                    onDrop={(e) => handleDrop(e, 'banner_principal')}
+                  >
+                    {banners.banner_principal.isLoading ? (
+                      <div className="space-y-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                        <p className="text-sm text-gray-600">Subiendo imagen...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                        <p className="text-sm text-gray-600">
+                          Arrastra una imagen aquí o{' '}
+                          <label className="text-blue-500 hover:text-blue-600 cursor-pointer underline">
+                            selecciona un archivo
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleFileSelect(e, 'banner_principal')}
+                              className="hidden"
+                            />
+                          </label>
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          PNG, JPG, GIF hasta 10MB. Recomendado: 1200x300px
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="url-input">URL de la imagen</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="url-input"
+                      type="url"
+                      placeholder="https://ejemplo.com/imagen.jpg"
+                      value={banners.banner_principal.url}
+                      onChange={(e) => updateBannerState('banner_principal', { url: e.target.value })}
+                    />
+                    <Button 
+                      onClick={() => handleUrlSubmit('banner_principal')}
+                      disabled={!banners.banner_principal.url || banners.banner_principal.isLoading}
+                    >
+                      {banners.banner_principal.isLoading ? 'Guardando...' : 'Guardar'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

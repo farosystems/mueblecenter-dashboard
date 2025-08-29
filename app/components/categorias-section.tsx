@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Plus, Edit, Trash2 } from "lucide-react"
+import { Plus, Edit, Trash2, Upload, X, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { Categoria } from "@/lib/supabase"
+import { supabase } from "@/lib/supabase"
+import Image from "next/image"
 
 interface CategoriasSectionProps {
   categorias: Categoria[]
@@ -26,11 +28,14 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
   const [editingCategoria, setEditingCategoria] = useState<Categoria | null>(null)
   const [formData, setFormData] = useState({
     descripcion: "",
+    logo: "",
   })
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false)
 
   const resetForm = () => {
     setFormData({
       descripcion: "",
+      logo: "",
     })
     setEditingCategoria(null)
   }
@@ -40,6 +45,7 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
 
     const categoriaData = {
       descripcion: formData.descripcion,
+      logo: formData.logo || null,
     }
 
     try {
@@ -59,6 +65,7 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
     setEditingCategoria(categoria)
     setFormData({
       descripcion: categoria.descripcion,
+      logo: categoria.logo || "",
     })
     setIsDialogOpen(true)
   }
@@ -82,6 +89,61 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
   const handleDeleteCancel = () => {
     setIsDeleteDialogOpen(false)
     setCategoriaToDelete(null)
+  }
+
+  const uploadLogoToSupabase = async (file: File): Promise<string> => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Math.random()}.${fileExt}`
+    const filePath = `logos/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('imagenes')
+      .upload(filePath, file)
+
+    if (uploadError) {
+      throw uploadError
+    }
+
+    const { data } = supabase.storage
+      .from('imagenes')
+      .getPublicUrl(filePath)
+
+    return data.publicUrl
+  }
+
+  const handleLogoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Por favor selecciona solo archivos de imagen')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('El archivo es muy grande. Máximo 5MB')
+      return
+    }
+
+    setIsUploadingLogo(true)
+    
+    try {
+      const url = await uploadLogoToSupabase(file)
+      setFormData({ ...formData, logo: url })
+    } catch (error) {
+      console.error('Error al subir logo:', error)
+      alert('Error al subir el logo')
+    } finally {
+      setIsUploadingLogo(false)
+    }
+  }
+
+  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleLogoUpload(file)
+    }
+  }
+
+  const handleRemoveLogo = () => {
+    setFormData({ ...formData, logo: "" })
   }
 
   return (
@@ -126,8 +188,69 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
                   required
                 />
               </div>
-              <Button type="submit" className="w-full">
-                {editingCategoria ? "Actualizar" : "Crear"} Categoría
+
+              <div>
+                <Label>Logo de la Categoría</Label>
+                <div className="space-y-3">
+                  {formData.logo ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-700">Logo actual</p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleRemoveLogo}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="border rounded-lg overflow-hidden bg-gray-50 p-2">
+                        <Image
+                          src={formData.logo}
+                          alt="Logo de la categoría"
+                          width={100}
+                          height={100}
+                          className="w-20 h-20 object-contain mx-auto"
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 break-all">{formData.logo}</p>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                      {isUploadingLogo ? (
+                        <div className="space-y-2">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                          <p className="text-sm text-gray-600">Subiendo logo...</p>
+                        </div>
+                      ) : (
+                        <>
+                          <ImageIcon className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                          <p className="text-sm text-gray-600">
+                            <label className="text-blue-500 hover:text-blue-600 cursor-pointer underline">
+                              Selecciona un archivo de imagen
+                              <Input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoFileSelect}
+                                className="hidden"
+                                disabled={isUploadingLogo}
+                              />
+                            </label>
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            PNG, JPG, GIF hasta 5MB
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isUploadingLogo}>
+                {isUploadingLogo ? "Subiendo..." : editingCategoria ? "Actualizar" : "Crear"} Categoría
               </Button>
             </form>
           </DialogContent>
@@ -138,6 +261,7 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
+              <TableHead>Logo</TableHead>
               <TableHead>Descripción</TableHead>
               <TableHead>Fecha de Creación</TableHead>
               <TableHead>Acciones</TableHead>
@@ -147,6 +271,23 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
             {categorias.map((categoria) => (
               <TableRow key={categoria.id}>
                 <TableCell>{categoria.id}</TableCell>
+                <TableCell>
+                  {categoria.logo ? (
+                    <div className="w-12 h-12 bg-gray-50 rounded-lg flex items-center justify-center overflow-hidden">
+                      <Image
+                        src={categoria.logo}
+                        alt={`Logo de ${categoria.descripcion}`}
+                        width={40}
+                        height={40}
+                        className="w-10 h-10 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <ImageIcon className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell className="font-medium">{categoria.descripcion}</TableCell>
                 <TableCell>{new Date(categoria.created_at).toLocaleDateString('es-AR')}</TableCell>
                 <TableCell>

@@ -13,14 +13,12 @@ import Image from "next/image"
 
 interface LogoConfigProps {
   configuracion: Configuracion | null
-  onUpdateConfiguracion: (updates: Partial<Pick<Configuracion, 'logo' | 'titulo' | 'subtitulo'>>) => Promise<any>
+  onUpdateConfiguracion: (updates: Partial<Pick<Configuracion, 'logo'>>) => Promise<any>
 }
 
 export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [logoUrl, setLogoUrl] = useState("")
-  const [titulo, setTitulo] = useState("")
-  const [subtitulo, setSubtitulo] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadMode, setUploadMode] = useState<'file' | 'url'>('file')
@@ -28,8 +26,6 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
   useEffect(() => {
     if (configuracion) {
       setLogoUrl(configuracion.logo || "")
-      setTitulo(configuracion.titulo || "")
-      setSubtitulo(configuracion.subtitulo || "")
     }
   }, [configuracion])
 
@@ -96,9 +92,7 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
     setIsLoading(true)
     try {
       const updates = {
-        logo: logoUrl || null,
-        titulo: titulo || null,
-        subtitulo: subtitulo || null
+        logo: logoUrl || null
       }
       await onUpdateConfiguracion(updates)
       setIsDialogOpen(false)
@@ -120,7 +114,7 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <ImageIcon className="h-5 w-5" />
-            Logo y Título del Sistema
+            Logo del Sistema
           </CardTitle>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
@@ -129,14 +123,13 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
                 Configurar
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-xl">
               <DialogHeader>
-                <DialogTitle>Configurar Logo y Título</DialogTitle>
+                <DialogTitle>Configurar Logo del Sistema</DialogTitle>
               </DialogHeader>
-              <div className="space-y-6">
-                {/* Logo */}
+              <div className="space-y-4">
                 <div className="space-y-4">
-                  <Label className="text-base font-medium">Logo del Sistema</Label>
+                  <Label className="text-base font-medium">Logo</Label>
                   
                   <div className="flex gap-2">
                     <Button
@@ -223,13 +216,13 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
                           Remover
                         </Button>
                       </div>
-                      <div className="flex items-center justify-center border rounded-lg p-4 bg-gray-50">
+                      <div className="flex items-center justify-center border rounded-lg p-6 bg-gray-50">
                         <Image
                           src={logoUrl}
                           alt="Vista previa del logo"
-                          width={80}
-                          height={80}
-                          className="max-w-20 max-h-20 object-contain"
+                          width={120}
+                          height={120}
+                          className="max-w-32 max-h-32 object-contain"
                           onError={() => {
                             console.error('Error loading logo preview')
                           }}
@@ -237,33 +230,6 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Títulos */}
-                <div className="space-y-4">
-                  <Label className="text-base font-medium">Textos del Sistema</Label>
-                  
-                  <div>
-                    <Label htmlFor="titulo">Título principal</Label>
-                    <Input
-                      id="titulo"
-                      placeholder="Dashboard"
-                      value={titulo}
-                      onChange={(e) => setTitulo(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="subtitulo">Subtítulo</Label>
-                    <Input
-                      id="subtitulo"
-                      placeholder="Panel Admin"
-                      value={subtitulo}
-                      onChange={(e) => setSubtitulo(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
                 </div>
               </div>
               
@@ -280,34 +246,23 @@ export function LogoConfig({ configuracion, onUpdateConfiguracion }: LogoConfigP
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-              {configuracion?.logo ? (
+            {configuracion?.logo ? (
+              <div className="flex justify-center p-6 bg-gray-50 rounded-lg">
                 <Image
                   src={configuracion.logo}
                   alt="Logo actual"
-                  width={40}
-                  height={40}
-                  className="w-10 h-10 object-contain rounded"
+                  width={80}
+                  height={80}
+                  className="w-20 h-20 object-contain"
                 />
-              ) : (
-                <div className="w-10 h-10 bg-gray-300 rounded flex items-center justify-center">
-                  <ImageIcon className="h-5 w-5 text-gray-500" />
-                </div>
-              )}
-              <div className="flex-1">
-                <p className="font-medium text-gray-900">
-                  {configuracion?.titulo || "Dashboard"}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {configuracion?.subtitulo || "Panel Admin"}
-                </p>
               </div>
-            </div>
-            
-            {!configuracion?.logo && !configuracion?.titulo && (
-              <div className="text-center py-4 text-gray-500">
-                <p className="text-sm">Usando configuración por defecto</p>
-                <p className="text-xs">Configura tu logo y títulos personalizados</p>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <div className="mx-auto w-16 h-16 bg-gray-300 rounded-lg flex items-center justify-center mb-3">
+                  <ImageIcon className="h-8 w-8 text-gray-500" />
+                </div>
+                <p className="text-sm">No hay logo configurado</p>
+                <p className="text-xs">Haz clic en "Configurar" para agregar tu logo</p>
               </div>
             )}
           </div>

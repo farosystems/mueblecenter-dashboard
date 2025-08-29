@@ -7,6 +7,7 @@ import { ProductosSection } from "./components/productos-section"
 import { CategoriasSection } from "./components/categorias-section"
 import { MarcasSection } from "./components/marcas-section"
 import { ZonasSection } from "./components/zonas-section"
+import { StockSucursalesSection } from "./components/stock-sucursales-section"
 import { PlanesSection } from "./components/planes-section"
 import { ProductosPlanSection } from "./components/productos-plan-section"
 import { ProductosPlanesSection } from "./components/productos-planes-section"
@@ -38,6 +39,7 @@ function Dashboard() {
     categorias,
     marcas,
     zonas,
+    stockSucursales,
     configuracion,
     configuracionZonas,
     configuracionWeb,
@@ -56,6 +58,10 @@ function Dashboard() {
     createZona,
     updateZona,
     deleteZona,
+    createStockSucursal,
+    updateStockSucursal,
+    deleteStockSucursal,
+    importStockSucursales,
     createConfiguracionZona,
     updateConfiguracionZona,
     deleteConfiguracionZona,
@@ -200,6 +206,18 @@ function Dashboard() {
             onCreateZona={createZona}
             onUpdateZona={updateZona}
             onDeleteZona={deleteZona}
+          />
+        )
+      case "stock-sucursales":
+        return (
+          <StockSucursalesSection 
+            stockSucursales={stockSucursales}
+            productos={productos}
+            zonas={zonas}
+            onCreateStockSucursal={createStockSucursal}
+            onUpdateStockSucursal={updateStockSucursal}
+            onDeleteStockSucursal={deleteStockSucursal}
+            onImportStockSucursales={importStockSucursales}
           />
         )
       case "planes":
