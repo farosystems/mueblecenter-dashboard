@@ -143,4 +143,26 @@ export interface StockSucursal {
   activo: boolean
   producto?: Producto
   zona?: Zona
+}
+
+// Tipo para la configuración del agente
+export interface ConfiguracionAgente {
+  id: string
+  nombre_configuracion: string
+  descripcion?: string
+  hora_inicio: string
+  hora_fin: string
+  habilita_envios: boolean
+  habilita_planes_financiacion: boolean
+  habilita_promociones: boolean
+  habilita_stock_sucursales: boolean
+  habilita_producto_sustituto: boolean
+  habilita_consulta_precios: boolean
+  habilita_busqueda_productos: boolean
+  habilita_informacion_categorias: boolean
+  habilita_informacion_marcas: boolean
+  habilita_consulta_disponibilidad: boolean
+  activa: boolean
+  created_at: string
+  updated_at: string
 } 

@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { Plus, Edit, Trash2, Upload, Link, X } from "lucide-react"
+import { Plus, Edit, Trash2, Upload, Link, X, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -31,6 +31,8 @@ export function MarcasSection({ marcas, onCreateMarca, onUpdateMarca, onDeleteMa
   })
   const [isUploading, setIsUploading] = useState(false)
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('file')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(10)
 
   const resetForm = () => {
     setFormData({
@@ -215,6 +217,25 @@ export function MarcasSection({ marcas, onCreateMarca, onUpdateMarca, onDeleteMa
     setFormData({ ...formData, logo: '' })
   }
 
+  // Pagination logic
+  const totalItems = marcas.length
+  const totalPages = Math.ceil(totalItems / itemsPerPage)
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const currentMarcas = marcas.slice(startIndex, endIndex)
+
+  const goToPage = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)))
+  }
+
+  const goToPreviousPage = () => {
+    goToPage(currentPage - 1)
+  }
+
+  const goToNextPage = () => {
+    goToPage(currentPage + 1)
+  }
+
   return (
     <>
       <Card>
@@ -377,7 +398,7 @@ export function MarcasSection({ marcas, onCreateMarca, onUpdateMarca, onDeleteMa
             </TableRow>
           </TableHeader>
           <TableBody>
-            {marcas.map((marca) => (
+            {currentMarcas.map((marca) => (
               <TableRow key={marca.id}>
                 <TableCell>{marca.id}</TableCell>
                 <TableCell>
@@ -415,6 +436,69 @@ export function MarcasSection({ marcas, onCreateMarca, onUpdateMarca, onDeleteMa
             ))}
           </TableBody>
         </Table>
+        
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <div className="text-sm text-gray-500">
+              Mostrando {startIndex + 1} a {Math.min(endIndex, totalItems)} de {totalItems} marcas
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                  // Show first page, last page, current page, and pages around current
+                  if (
+                    page === 1 ||
+                    page === totalPages ||
+                    (page >= currentPage - 1 && page <= currentPage + 1)
+                  ) {
+                    return (
+                      <Button
+                        key={page}
+                        variant={currentPage === page ? "default" : "outline"}
+                        size="sm"
+                        className="w-8 h-8 p-0"
+                        onClick={() => goToPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  } else if (
+                    page === currentPage - 2 ||
+                    page === currentPage + 2
+                  ) {
+                    return (
+                      <span key={page} className="px-1 text-gray-400">
+                        ...
+                      </span>
+                    )
+                  }
+                  return null
+                })}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
 

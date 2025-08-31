@@ -14,6 +14,7 @@ import { ProductosPlanesSection } from "./components/productos-planes-section"
 import { ConfiguracionZonas } from "./components/configuracion-zonas"
 import { BannerConfig } from "./components/banner-config"
 import { LogoConfig } from "./components/logo-config"
+import { ConfiguracionAgenteSection } from "./components/configuracion-agente-section"
 import { useSupabaseData } from "./hooks/use-supabase-data"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -282,10 +283,7 @@ function Dashboard() {
             </TabsContent>
             
             <TabsContent value="agente" className="space-y-6">
-              <div className="text-center py-12 text-gray-500">
-                <p className="text-lg font-medium">Configuración del Agente</p>
-                <p className="text-sm mt-2">Esta sección estará disponible próximamente</p>
-              </div>
+              <ConfiguracionAgenteSection />
             </TabsContent>
           </Tabs>
         )

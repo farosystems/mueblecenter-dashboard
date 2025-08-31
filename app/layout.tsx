@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 import { ClerkProvider } from '@clerk/nextjs'
+import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
   title: 'Demo Admin',
@@ -34,6 +35,7 @@ html {
       <body>
         <ClerkProvider>
           {children}
+          <Toaster position="top-right" richColors />
         </ClerkProvider>
       </body>
     </html>

@@ -123,7 +123,7 @@ export function useSupabaseData() {
   const loadCategorias = async () => {
     try {
       const { data, error } = await supabase
-        .from('categoria')
+        .from('categorias')
         .select('*')
         .order('descripcion', { ascending: true })
 
@@ -215,6 +215,30 @@ export function useSupabaseData() {
         .select()
 
       if (error) throw error
+
+      // Crear asociaciones automáticas por defecto basadas en los booleanos
+      if (data?.[0]) {
+        const productoCreado = data[0] as Producto
+        console.log('Producto creado, verificando asociaciones automáticas:', {
+          id: productoCreado.id,
+          aplica_todos_plan: productoCreado.aplica_todos_plan,
+          aplica_solo_categoria: productoCreado.aplica_solo_categoria,
+          aplica_plan_especial: productoCreado.aplica_plan_especial
+        })
+
+        // Solo crear asociaciones si alguno de los booleanos está activado
+        if (productoCreado.aplica_todos_plan || productoCreado.aplica_solo_categoria) {
+          try {
+            await createDefaultAssociationsForProduct(productoCreado)
+          } catch (associationError) {
+            console.error('Error creando asociaciones automáticas:', associationError)
+            // No lanzar el error para no fallar la creación del producto
+          }
+        } else {
+          console.log('Producto no requiere asociaciones automáticas (solo plan especial o ninguno)')
+        }
+      }
+
       await loadProductos()
       return data?.[0]
     } catch (err) {
@@ -248,6 +272,41 @@ export function useSupabaseData() {
       if (error) throw error
       
       console.log('Producto actualizado exitosamente:', data?.[0])
+
+      // Si se actualizaron los booleanos de asociación, regenerar asociaciones por defecto
+      const hasAssociationChanges = updates.aplica_todos_plan !== undefined || 
+                                   updates.aplica_solo_categoria !== undefined || 
+                                   updates.aplica_plan_especial !== undefined
+
+      if (hasAssociationChanges && data?.[0]) {
+        const productoActualizado = data[0] as Producto
+        console.log('Cambios en asociaciones detectados, regenerando asociaciones por defecto para producto:', productoActualizado.id)
+        
+        try {
+          // Eliminar asociaciones por defecto existentes para este producto
+          const { error: deleteError } = await supabase
+            .from('producto_planes_default')
+            .delete()
+            .eq('fk_id_producto', id)
+
+          if (deleteError) {
+            console.error('Error eliminando asociaciones existentes:', deleteError)
+          } else {
+            console.log('Asociaciones por defecto existentes eliminadas para producto:', id)
+          }
+
+          // Crear nuevas asociaciones basadas en los booleanos actualizados
+          if (productoActualizado.aplica_todos_plan || productoActualizado.aplica_solo_categoria) {
+            await createDefaultAssociationsForProduct(productoActualizado)
+          } else {
+            console.log('Producto actualizado no requiere asociaciones automáticas (solo plan especial o ninguno)')
+          }
+        } catch (associationError) {
+          console.error('Error regenerando asociaciones automáticas:', associationError)
+          // No lanzar el error para no fallar la actualización del producto
+        }
+      }
+
       await loadProductos()
       return data?.[0]
     } catch (err) {
@@ -394,12 +453,16 @@ export function useSupabaseData() {
   // Crear categoría
   const createCategoria = async (categoria: Omit<Categoria, 'id' | 'created_at'>) => {
     try {
+      console.log('Creando categoría con payload:', categoria)
       const { data, error } = await supabase
-        .from('categoria')
+        .from('categorias')
         .insert([categoria])
         .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Error de Supabase:', error)
+        throw error
+      }
       await loadCategorias()
       return data?.[0]
     } catch (err) {
@@ -413,7 +476,7 @@ export function useSupabaseData() {
   const updateCategoria = async (id: number, updates: Partial<Categoria>) => {
     try {
       const { data, error } = await supabase
-        .from('categoria')
+        .from('categorias')
         .update(updates)
         .eq('id', id)
         .select()
@@ -432,7 +495,7 @@ export function useSupabaseData() {
   const deleteCategoria = async (id: number) => {
     try {
       const { error } = await supabase
-        .from('categoria')
+        .from('categorias')
         .delete()
         .eq('id', id)
 

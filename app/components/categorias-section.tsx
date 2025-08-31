@@ -49,6 +49,7 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
     }
 
     try {
+      console.log('Intentando guardar categoría:', { editingCategoria, categoriaData })
       if (editingCategoria) {
         await onUpdateCategoria(editingCategoria.id, categoriaData)
       } else {
@@ -58,6 +59,7 @@ export function CategoriasSection({ categorias, onCreateCategoria, onUpdateCateg
       resetForm()
     } catch (error) {
       console.error('Error al guardar categoría:', error)
+      console.error('Payload enviado:', categoriaData)
     }
   }
 
