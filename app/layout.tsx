@@ -6,7 +6,7 @@ import { ClerkProvider } from '@clerk/nextjs'
 import { Toaster } from '@/components/ui/sonner'
 
 export const metadata: Metadata = {
-  title: 'Demo Admin',
+  title: 'Dashboard Mueblecenter',
   description: 'Panel de administración para tu catálogo',
   generator: 'v0.dev',
   icons: {
