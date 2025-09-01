@@ -10,9 +10,9 @@ export const metadata: Metadata = {
   description: 'Panel de administración para tu catálogo',
   generator: 'v0.dev',
   icons: {
-    icon: '/logo.png',
-    shortcut: '/logo.png',
-    apple: '/logo.png',
+    icon: '/logo1.png',
+    shortcut: '/logo1.png',
+    apple: '/logo1.png',
   },
 }
 

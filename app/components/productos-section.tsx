@@ -15,6 +15,7 @@ import { ImageUpload } from "./image-upload"
 import { ExcelGenerator } from "./excel-generator"
 import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
+import { ProductMigrator } from "./product-migrator"
 import { Producto, Categoria, Marca } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 
@@ -595,6 +596,7 @@ export const ProductosSection = React.memo(({
           <ExcelGenerator productos={productos} />
           <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
               <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
+          <ProductMigrator onMigrationComplete={() => window.location.reload()} />
                                               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     if (open) {
                       setIsDialogOpen(true)
