@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse } from "lucide-react"
+import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -11,8 +11,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarRail,
 } from "@/components/ui/sidebar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Configuracion } from "@/lib/supabase"
 import Image from "next/image"
 
@@ -63,20 +67,44 @@ const menuItems = [
     url: "#productos-plan",
   },
   {
-    title: "Configuración",
+    title: "Configuración Web",
     icon: Settings,
     url: "#configuracion",
   },
 ]
 
+const agenteMenuItems = [
+  {
+    title: "Configuración del Agente",
+    url: "#agente-configuracion",
+  },
+  {
+    title: "Clientes",
+    url: "#agente-clientes",
+  },
+  {
+    title: "Pedidos",
+    url: "#agente-pedidos",
+  },
+]
+
 interface AppSidebarProps {
   configuracion?: Configuracion | null
+  activeSection?: string
 }
 
-export function AppSidebar({ configuracion }: AppSidebarProps) {
+export function AppSidebar({ configuracion, activeSection = "dashboard" }: AppSidebarProps) {
   const titulo = configuracion?.titulo || "Dashboard"
   const subtitulo = configuracion?.subtitulo || "Panel Admin"
   const logo = configuracion?.logo
+  
+  const getActiveSection = (url: string) => {
+    return url.replace("#", "")
+  }
+  
+  const isAgenteSection = (section: string) => {
+    return section.startsWith("agente-")
+  }
 
   return (
     <Sidebar>
@@ -108,16 +136,49 @@ export function AppSidebar({ configuracion }: AppSidebarProps) {
           <SidebarGroupLabel>Administración</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url} className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
+              {menuItems.map((item) => {
+                const isActive = getActiveSection(item.url) === activeSection
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild isActive={isActive}>
+                      <a href={item.url} className="flex items-center gap-2">
+                        <item.icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
+              <Collapsible defaultOpen={isAgenteSection(activeSection)}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton 
+                      className="flex items-center gap-2"
+                      isActive={isAgenteSection(activeSection)}
+                    >
+                      <Bot className="h-4 w-4" />
+                      <span>Agente</span>
+                      <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {agenteMenuItems.map((item) => {
+                        const isActive = getActiveSection(item.url) === activeSection
+                        return (
+                          <SidebarMenuSubItem key={item.title}>
+                            <SidebarMenuSubButton asChild isActive={isActive}>
+                              <a href={item.url} className="flex items-center gap-2">
+                                <span>{item.title}</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
                 </SidebarMenuItem>
-              ))}
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

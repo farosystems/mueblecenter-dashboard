@@ -15,6 +15,8 @@ import { ConfiguracionZonas } from "./components/configuracion-zonas"
 import { BannerConfig } from "./components/banner-config"
 import { LogoConfig } from "./components/logo-config"
 import { ConfiguracionAgenteSection } from "./components/configuracion-agente-section"
+import { ClientesSection } from "./components/clientes-section"
+import { PedidosSection } from "./components/pedidos-section"
 import { useSupabaseData } from "./hooks/use-supabase-data"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -147,7 +149,13 @@ function Dashboard() {
       case "productos-planes":
         return "Productos por Planes"
       case "configuracion":
-        return "Configuración"
+        return "Configuración Web"
+      case "agente-configuracion":
+        return "Configuración del Agente"
+      case "agente-clientes":
+        return "Clientes"
+      case "agente-pedidos":
+        return "Pedidos"
       default:
         return "Dashboard"
     }
@@ -258,34 +266,67 @@ function Dashboard() {
         )
       case "configuracion":
         return (
-          <Tabs defaultValue="web" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="web">Configuración Catálogo</TabsTrigger>
-              <TabsTrigger value="agente">Configuración del Agente</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="web" className="space-y-6">
-              <LogoConfig
-                configuracion={configuracion}
-                onUpdateConfiguracion={updateConfiguracion}
-              />
-              <BannerConfig
-                configuracionWeb={configuracionWeb}
-                onUpdateConfiguracionWeb={updateConfiguracionWeb}
-              />
-              <ConfiguracionZonas
-                zonas={zonas}
-                configuracionZonas={configuracionZonas}
-                onCreateConfiguracionZona={createConfiguracionZona}
-                onUpdateConfiguracionZona={updateConfiguracionZona}
-                onDeleteConfiguracionZona={deleteConfiguracionZona}
-              />
-            </TabsContent>
-            
-            <TabsContent value="agente" className="space-y-6">
-              <ConfiguracionAgenteSection />
-            </TabsContent>
-          </Tabs>
+          <div className="space-y-6">
+            <LogoConfig
+              configuracion={configuracion}
+              onUpdateConfiguracion={updateConfiguracion}
+            />
+            <BannerConfig
+              configuracionWeb={configuracionWeb}
+              onUpdateConfiguracionWeb={updateConfiguracionWeb}
+            />
+            <ConfiguracionZonas
+              zonas={zonas}
+              configuracionZonas={configuracionZonas}
+              onCreateConfiguracionZona={createConfiguracionZona}
+              onUpdateConfiguracionZona={updateConfiguracionZona}
+              onDeleteConfiguracionZona={deleteConfiguracionZona}
+            />
+          </div>
+        )
+      case "agente-configuracion":
+        return <ConfiguracionAgenteSection />
+      case "agente-clientes":
+        return (
+          <ClientesSection 
+            clientes={[]} // TODO: Add real data from Supabase
+            zonas={zonas}
+            onCreateCliente={async (cliente) => {
+              // TODO: Implement create cliente
+              console.log("Create cliente:", cliente)
+            }}
+            onUpdateCliente={async (id, cliente) => {
+              // TODO: Implement update cliente
+              console.log("Update cliente:", id, cliente)
+            }}
+            onDeleteCliente={async (id) => {
+              // TODO: Implement delete cliente
+              console.log("Delete cliente:", id)
+            }}
+          />
+        )
+      case "agente-pedidos":
+        return (
+          <PedidosSection 
+            pedidos={[]} // TODO: Add real data from Supabase
+            clientes={[]} // TODO: Add real data from Supabase
+            onCreatePedido={async (pedido) => {
+              // TODO: Implement create pedido
+              console.log("Create pedido:", pedido)
+            }}
+            onUpdatePedido={async (id, pedido) => {
+              // TODO: Implement update pedido
+              console.log("Update pedido:", id, pedido)
+            }}
+            onDeletePedido={async (id) => {
+              // TODO: Implement delete pedido
+              console.log("Delete pedido:", id)
+            }}
+            onViewPedidoDetails={(pedidoId) => {
+              // TODO: Implement view pedido details
+              console.log("View pedido details:", pedidoId)
+            }}
+          />
         )
       default:
         return <DashboardSection productos={productos} planes={planes} productosPorPlan={productosPorPlan} />
@@ -294,7 +335,7 @@ function Dashboard() {
 
   return (
     <SidebarProvider>
-      <AppSidebar configuracion={configuracion} />
+      <AppSidebar configuracion={configuracion} activeSection={activeSection} />
       <SidebarInset>
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
