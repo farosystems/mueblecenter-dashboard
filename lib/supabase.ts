@@ -21,6 +21,39 @@ export interface Marca {
   created_at: string
 }
 
+// Tipos para la jerarquía de productos
+export interface Presentacion {
+  id: string
+  nombre: string
+  descripcion?: string
+  imagen?: string
+  activo: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Linea {
+  id: string
+  nombre: string
+  descripcion?: string
+  presentacion_id: string
+  activo: boolean
+  created_at: string
+  updated_at: string
+  presentacion?: Presentacion
+}
+
+export interface Tipo {
+  id: string
+  nombre: string
+  descripcion?: string
+  linea_id: string
+  activo: boolean
+  created_at: string
+  updated_at: string
+  linea?: Linea
+}
+
 // Tipos para los productos
 export interface Producto {
   id: number
@@ -38,8 +71,17 @@ export interface Producto {
   aplica_todos_plan?: boolean
   aplica_solo_categoria?: boolean
   aplica_plan_especial?: boolean
+  // Campos de jerarquía
+  presentacion_id?: string
+  linea_id?: string
+  tipo_id?: string
+  // Campos existentes
   fk_id_categoria?: number
   fk_id_marca?: number
+  // Relaciones
+  presentacion?: Presentacion
+  linea?: Linea
+  tipo?: Tipo
   categoria?: Categoria
   marca?: Marca
 }

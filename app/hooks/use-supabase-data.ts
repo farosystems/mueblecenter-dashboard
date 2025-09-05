@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria, StockSucursal } from '@/lib/supabase'
+import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria, StockSucursal, Presentacion, Linea, Tipo } from '@/lib/supabase'
 import { testSupabaseConnection } from '@/lib/supabase-debug'
 import { setupSupabaseAuth } from '@/lib/supabase-auth'
 import { useUser } from '@clerk/nextjs'
@@ -15,6 +15,9 @@ export function useSupabaseData() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [planesCategorias, setPlanesCategorias] = useState<PlanCategoria[]>([])
   const [marcas, setMarcas] = useState<Marca[]>([])
+  const [presentaciones, setPresentaciones] = useState<Presentacion[]>([])
+  const [lineas, setLineas] = useState<Linea[]>([])
+  const [tipos, setTipos] = useState<Tipo[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
   const [stockSucursales, setStockSucursales] = useState<StockSucursal[]>([])
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null)
@@ -31,7 +34,10 @@ export function useSupabaseData() {
         .select(`
           *,
           categoria:fk_id_categoria(*),
-          marca:fk_id_marca(*)
+          marca:fk_id_marca(*),
+          presentacion:presentacion_id(*),
+          linea:linea_id(*),
+          tipo:tipo_id(*)
         `)
         .order('created_at', { ascending: false })
 
@@ -148,6 +154,63 @@ export function useSupabaseData() {
     } catch (err) {
       setError('Error al cargar marcas')
       console.error('Error loading marcas:', err)
+    }
+  }
+
+  // Cargar presentaciones
+  const loadPresentaciones = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('presentaciones')
+        .select('*')
+        .order('nombre', { ascending: true })
+
+      if (error) throw error
+      setPresentaciones(data || [])
+    } catch (err) {
+      setError('Error al cargar presentaciones')
+      console.error('Error loading presentaciones:', err)
+    }
+  }
+
+  // Cargar líneas
+  const loadLineas = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('lineas')
+        .select(`
+          *,
+          presentacion:presentacion_id(*)
+        `)
+        .order('nombre', { ascending: true })
+
+      if (error) throw error
+      setLineas(data || [])
+    } catch (err) {
+      setError('Error al cargar líneas')
+      console.error('Error loading lineas:', err)
+    }
+  }
+
+  // Cargar tipos
+  const loadTipos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('tipos')
+        .select(`
+          *,
+          linea:linea_id(
+            *,
+            presentacion:presentacion_id(*)
+          )
+        `)
+        .order('nombre', { ascending: true })
+
+      if (error) throw error
+      setTipos(data || [])
+    } catch (err) {
+      setError('Error al cargar tipos')
+      console.error('Error loading tipos:', err)
     }
   }
 
@@ -558,6 +621,168 @@ export function useSupabaseData() {
     } catch (err) {
       setError('Error al eliminar marca')
       console.error('Error deleting marca:', err)
+      throw err
+    }
+  }
+
+  // CRUD para Presentaciones
+  const createPresentacion = async (presentacion: Omit<Presentacion, 'id' | 'created_at' | 'updated_at'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('presentaciones')
+        .insert([presentacion])
+        .select()
+
+      if (error) throw error
+      await loadPresentaciones()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al crear presentación')
+      console.error('Error creating presentacion:', err)
+      throw err
+    }
+  }
+
+  const updatePresentacion = async (id: string, updates: Partial<Presentacion>) => {
+    try {
+      const { data, error } = await supabase
+        .from('presentaciones')
+        .update(updates)
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      await loadPresentaciones()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al actualizar presentación')
+      console.error('Error updating presentacion:', err)
+      throw err
+    }
+  }
+
+  const deletePresentacion = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('presentaciones')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await loadPresentaciones()
+      await loadLineas() // Recargar líneas porque pueden haber sido eliminadas en cascada
+      await loadTipos() // Recargar tipos porque pueden haber sido eliminados en cascada
+      await loadProductos() // Recargar productos porque pueden haber perdido referencia
+    } catch (err) {
+      setError('Error al eliminar presentación')
+      console.error('Error deleting presentacion:', err)
+      throw err
+    }
+  }
+
+  // CRUD para Líneas
+  const createLinea = async (linea: Omit<Linea, 'id' | 'created_at' | 'updated_at' | 'presentacion'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('lineas')
+        .insert([linea])
+        .select()
+
+      if (error) throw error
+      await loadLineas()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al crear línea')
+      console.error('Error creating linea:', err)
+      throw err
+    }
+  }
+
+  const updateLinea = async (id: string, updates: Partial<Linea>) => {
+    try {
+      const { data, error } = await supabase
+        .from('lineas')
+        .update(updates)
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      await loadLineas()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al actualizar línea')
+      console.error('Error updating linea:', err)
+      throw err
+    }
+  }
+
+  const deleteLinea = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('lineas')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await loadLineas()
+      await loadTipos() // Recargar tipos porque pueden haber sido eliminados en cascada
+      await loadProductos() // Recargar productos porque pueden haber perdido referencia
+    } catch (err) {
+      setError('Error al eliminar línea')
+      console.error('Error deleting linea:', err)
+      throw err
+    }
+  }
+
+  // CRUD para Tipos
+  const createTipo = async (tipo: Omit<Tipo, 'id' | 'created_at' | 'updated_at' | 'linea'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('tipos')
+        .insert([tipo])
+        .select()
+
+      if (error) throw error
+      await loadTipos()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al crear tipo')
+      console.error('Error creating tipo:', err)
+      throw err
+    }
+  }
+
+  const updateTipo = async (id: string, updates: Partial<Tipo>) => {
+    try {
+      const { data, error } = await supabase
+        .from('tipos')
+        .update(updates)
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+      await loadTipos()
+      return data?.[0]
+    } catch (err) {
+      setError('Error al actualizar tipo')
+      console.error('Error updating tipo:', err)
+      throw err
+    }
+  }
+
+  const deleteTipo = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('tipos')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      await loadTipos()
+      await loadProductos() // Recargar productos porque pueden haber perdido referencia
+    } catch (err) {
+      setError('Error al eliminar tipo')
+      console.error('Error deleting tipo:', err)
       throw err
     }
   }
@@ -1211,6 +1436,9 @@ export function useSupabaseData() {
             loadCategorias(),
             loadPlanesCategorias(),
             loadMarcas(),
+            loadPresentaciones(),
+            loadLineas(),
+            loadTipos(),
             loadZonas(),
             loadStockSucursales(),
             loadConfiguracion(),
@@ -1229,6 +1457,9 @@ export function useSupabaseData() {
     productosPorPlanDefault,
     categorias,
     marcas,
+    presentaciones,
+    lineas,
+    tipos,
     zonas,
     stockSucursales,
     configuracionZonas,
@@ -1248,6 +1479,15 @@ export function useSupabaseData() {
     createMarca,
     updateMarca,
     deleteMarca,
+    createPresentacion,
+    updatePresentacion,
+    deletePresentacion,
+    createLinea,
+    updateLinea,
+    deleteLinea,
+    createTipo,
+    updateTipo,
+    deleteTipo,
     createZona,
     updateZona,
     deleteZona,
@@ -1280,6 +1520,9 @@ export function useSupabaseData() {
         loadCategorias(),
         loadPlanesCategorias(),
         loadMarcas(),
+        loadPresentaciones(),
+        loadLineas(),
+        loadTipos(),
         loadZonas(),
         loadStockSucursales(),
         loadConfiguracion(),

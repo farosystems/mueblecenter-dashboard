@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight } from "lucide-react"
+import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight, Layers, GitBranch, Grid3x3 } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -32,9 +32,22 @@ const menuItems = [
     url: "#productos",
   },
   {
-    title: "Categorías",
-    icon: Tag,
-    url: "#categorias",
+    title: "Jerarquía de Artículos",
+    icon: Layers,
+    subItems: [
+      {
+        title: "Presentaciones",
+        url: "#presentaciones",
+      },
+      {
+        title: "Líneas",
+        url: "#lineas",
+      },
+      {
+        title: "Tipos",
+        url: "#tipos",
+      },
+    ],
   },
   {
     title: "Marcas",
@@ -106,6 +119,10 @@ export function AppSidebar({ configuracion, activeSection = "dashboard" }: AppSi
     return section.startsWith("agente-")
   }
 
+  const isJerarquiaSection = (section: string) => {
+    return ["presentaciones", "lineas", "tipos"].includes(section)
+  }
+
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
@@ -137,17 +154,54 @@ export function AppSidebar({ configuracion, activeSection = "dashboard" }: AppSi
           <SidebarGroupContent>
             <SidebarMenu>
               {menuItems.map((item) => {
-                const isActive = getActiveSection(item.url) === activeSection
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <a href={item.url} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        <span>{item.title}</span>
-                      </a>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )
+                if (item.subItems) {
+                  // Item con subitems (colapsible)
+                  return (
+                    <Collapsible key={item.title} defaultOpen={isJerarquiaSection(activeSection)}>
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton 
+                            className="flex items-center gap-2"
+                            isActive={isJerarquiaSection(activeSection)}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                            <ChevronRight className="ml-auto h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub>
+                            {item.subItems.map((subItem) => {
+                              const isActive = getActiveSection(subItem.url) === activeSection
+                              return (
+                                <SidebarMenuSubItem key={subItem.title}>
+                                  <SidebarMenuSubButton asChild isActive={isActive}>
+                                    <a href={subItem.url} className="flex items-center gap-2">
+                                      <span>{subItem.title}</span>
+                                    </a>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  )
+                } else {
+                  // Item normal
+                  const isActive = getActiveSection(item.url) === activeSection
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <a href={item.url} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </a>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                }
               })}
               <Collapsible defaultOpen={isAgenteSection(activeSection)}>
                 <SidebarMenuItem>

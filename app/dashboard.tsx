@@ -17,6 +17,9 @@ import { LogoConfig } from "./components/logo-config"
 import { ConfiguracionAgenteSection } from "./components/configuracion-agente-section"
 import { ClientesSection } from "./components/clientes-section"
 import { PedidosSection } from "./components/pedidos-section"
+import { PresentacionesSection } from "./components/presentaciones-section"
+import { LineasSection } from "./components/lineas-section"
+import { TiposSection } from "./components/tipos-section"
 import { useSupabaseData } from "./hooks/use-supabase-data"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -41,6 +44,9 @@ function Dashboard() {
     productosPorPlanDefault,
     categorias,
     marcas,
+    presentaciones,
+    lineas,
+    tipos,
     zonas,
     stockSucursales,
     configuracion,
@@ -58,6 +64,15 @@ function Dashboard() {
     createMarca,
     updateMarca,
     deleteMarca,
+    createPresentacion,
+    updatePresentacion,
+    deletePresentacion,
+    createLinea,
+    updateLinea,
+    deleteLinea,
+    createTipo,
+    updateTipo,
+    deleteTipo,
     createZona,
     updateZona,
     deleteZona,
@@ -136,6 +151,12 @@ function Dashboard() {
     switch (activeSection) {
       case "productos":
         return "Productos"
+      case "presentaciones":
+        return "Presentaciones"
+      case "lineas":
+        return "Líneas"
+      case "tipos":
+        return "Tipos"
       case "categorias":
         return "Categorías"
       case "marcas":
@@ -185,9 +206,42 @@ function Dashboard() {
             productos={productos} 
             categorias={categorias}
             marcas={marcas}
+            presentaciones={presentaciones}
+            lineas={lineas}
+            tipos={tipos}
             onCreateProducto={createProducto}
             onUpdateProducto={updateProducto}
             onDeleteProducto={deleteProducto}
+          />
+        )
+      case "presentaciones":
+        return (
+          <PresentacionesSection 
+            presentaciones={presentaciones}
+            onCreatePresentacion={createPresentacion}
+            onUpdatePresentacion={updatePresentacion}
+            onDeletePresentacion={deletePresentacion}
+          />
+        )
+      case "lineas":
+        return (
+          <LineasSection 
+            lineas={lineas}
+            presentaciones={presentaciones}
+            onCreateLinea={createLinea}
+            onUpdateLinea={updateLinea}
+            onDeleteLinea={deleteLinea}
+          />
+        )
+      case "tipos":
+        return (
+          <TiposSection 
+            tipos={tipos}
+            lineas={lineas}
+            presentaciones={presentaciones}
+            onCreateTipo={createTipo}
+            onUpdateTipo={updateTipo}
+            onDeleteTipo={deleteTipo}
           />
         )
       case "categorias":

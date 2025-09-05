@@ -16,13 +16,17 @@ import { ExcelGenerator } from "./excel-generator"
 import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
-import { Producto, Categoria, Marca } from "@/lib/supabase"
+import { JerarquiaMigrator } from "./jerarquia-migrator"
+import { Producto, Categoria, Marca, Presentacion, Linea, Tipo } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 
 interface ProductosSectionProps {
   productos: Producto[]
   categorias: Categoria[]
   marcas: Marca[]
+  presentaciones: Presentacion[]
+  lineas: Linea[]
+  tipos: Tipo[]
   onCreateProducto: (producto: Omit<Producto, 'id' | 'created_at' | 'categoria' | 'marca'>) => Promise<Producto | undefined>
   onUpdateProducto: (id: number, producto: Partial<Producto>) => Promise<Producto | undefined>
   onDeleteProducto: (id: number) => Promise<void>
@@ -32,6 +36,9 @@ export const ProductosSection = React.memo(({
   productos,
   categorias,
   marcas,
+  presentaciones,
+  lineas,
+  tipos,
   onCreateProducto,
   onUpdateProducto,
   onDeleteProducto
@@ -54,7 +61,9 @@ export const ProductosSection = React.memo(({
     descripcion: "",
     descripcion_detallada: "",
     precio: "",
-    fk_id_categoria: undefined as string | undefined,
+    presentacion_id: undefined as string | undefined,
+    linea_id: undefined as string | undefined,
+    tipo_id: undefined as string | undefined,
     fk_id_marca: undefined as string | undefined,
     imagenes: [] as string[],
     destacado: false,
@@ -280,7 +289,9 @@ export const ProductosSection = React.memo(({
       descripcion: "",
       descripcion_detallada: "",
       precio: "",
-      fk_id_categoria: undefined,
+      presentacion_id: undefined,
+      linea_id: undefined,
+      tipo_id: undefined,
       fk_id_marca: undefined,
       imagenes: [],
       destacado: false,
@@ -308,7 +319,9 @@ export const ProductosSection = React.memo(({
       descripcion: producto.descripcion || "",
       descripcion_detallada: producto.descripcion_detallada || "",
       precio: producto.precio?.toString() || "",
-      fk_id_categoria: producto.fk_id_categoria?.toString(),
+      presentacion_id: producto.presentacion_id?.toString(),
+      linea_id: producto.linea_id?.toString(),
+      tipo_id: producto.tipo_id?.toString(),
       fk_id_marca: producto.fk_id_marca?.toString(),
       imagenes: productImages,
       destacado: producto.destacado || false,
@@ -379,7 +392,9 @@ export const ProductosSection = React.memo(({
         descripcion: formData.descripcion,
         descripcion_detallada: formData.descripcion_detallada || undefined,
         precio: parseFloat(formData.precio),
-        fk_id_categoria: formData.fk_id_categoria ? parseInt(formData.fk_id_categoria) : undefined,
+        presentacion_id: formData.presentacion_id || undefined,
+        linea_id: formData.linea_id || undefined,
+        tipo_id: formData.tipo_id || undefined,
         fk_id_marca: formData.fk_id_marca ? parseInt(formData.fk_id_marca) : undefined,
         // Mapear el array de imágenes a los campos individuales de la base de datos
         // Asegurar que los campos se limpien cuando no hay imágenes
@@ -597,6 +612,13 @@ export const ProductosSection = React.memo(({
           <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
               <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
           <ProductMigrator onMigrationComplete={() => window.location.reload()} />
+          <JerarquiaMigrator 
+            productos={productos}
+            presentaciones={presentaciones}
+            lineas={lineas}
+            tipos={tipos}
+            onUpdateProducto={onUpdateProducto} 
+          />
                                               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     if (open) {
                       setIsDialogOpen(true)
@@ -798,27 +820,92 @@ export const ProductosSection = React.memo(({
                 
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="categoria">Categoría</Label>
+              <div className="space-y-4">
+                <div className="text-sm font-medium text-gray-700 mb-3 border-b pb-2">Jerarquía del Artículo</div>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label htmlFor="presentacion">Presentación</Label>
                   <Select
-                    value={formData.fk_id_categoria}
-                    onValueChange={(value) => setFormData({ ...formData, fk_id_categoria: value })}
+                    value={formData.presentacion_id}
+                    onValueChange={(value) => {
+                      setFormData({ 
+                        ...formData, 
+                        presentacion_id: value,
+                        linea_id: undefined, // Reset línea cuando cambia presentación
+                        tipo_id: undefined   // Reset tipo cuando cambia presentación
+                      })
+                    }}
                     disabled={isCreating}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar categoría" />
+                      <SelectValue placeholder="Seleccionar presentación" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categorias.map((categoria) => (
-                        <SelectItem key={categoria.id} value={categoria.id.toString()}>
-                          {categoria.descripcion}
-                        </SelectItem>
-                      ))}
+                      {presentaciones
+                        .filter(p => p.activo)
+                        .map((presentacion) => (
+                          <SelectItem key={presentacion.id} value={presentacion.id}>
+                            {presentacion.nombre}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
+                <div className="space-y-2">
+                  <Label htmlFor="linea">Línea</Label>
+                  <Select
+                    value={formData.linea_id}
+                    onValueChange={(value) => {
+                      setFormData({ 
+                        ...formData, 
+                        linea_id: value,
+                        tipo_id: undefined // Reset tipo cuando cambia línea
+                      })
+                    }}
+                    disabled={isCreating || !formData.presentacion_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar línea" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lineas
+                        .filter(l => l.activo && l.presentacion_id === formData.presentacion_id)
+                        .map((linea) => (
+                          <SelectItem key={linea.id} value={linea.id}>
+                            {linea.nombre}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tipo">Tipo</Label>
+                  <Select
+                    value={formData.tipo_id}
+                    onValueChange={(value) => setFormData({ ...formData, tipo_id: value })}
+                    disabled={isCreating || !formData.linea_id}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tipos
+                        .filter(t => t.activo && t.linea_id === formData.linea_id)
+                        .map((tipo) => (
+                          <SelectItem key={tipo.id} value={tipo.id}>
+                            {tipo.nombre}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="text-sm font-medium text-gray-700 mb-3 border-b pb-2">Información Adicional</div>
+                <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
                   <Label htmlFor="marca">Marca</Label>
                   <Select
                     value={formData.fk_id_marca}
@@ -836,6 +923,7 @@ export const ProductosSection = React.memo(({
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
                 </div>
               </div>
 
@@ -1236,7 +1324,9 @@ export const ProductosSection = React.memo(({
               <TableHead>Descripción</TableHead>
               <TableHead>Desc. Det.</TableHead>
               <TableHead>Imágenes</TableHead>
-              <TableHead>Categoría</TableHead>
+              <TableHead>Presentación</TableHead>
+              <TableHead>Línea</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead>Marca</TableHead>
               <TableHead>Precio</TableHead>
               <TableHead>Destacado</TableHead>
@@ -1290,7 +1380,9 @@ export const ProductosSection = React.memo(({
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{producto.categoria?.descripcion || '-'}</TableCell>
+                  <TableCell>{producto.presentacion?.nombre || '-'}</TableCell>
+                  <TableCell>{producto.linea?.nombre || '-'}</TableCell>
+                  <TableCell>{producto.tipo?.nombre || '-'}</TableCell>
                   <TableCell>{producto.marca?.descripcion || '-'}</TableCell>
                   <TableCell>{formatPrice(producto.precio)}</TableCell>
                   <TableCell>
