@@ -233,17 +233,36 @@ export function useSupabaseData() {
   // Cargar stock por sucursales
   const loadStockSucursales = async () => {
     try {
-      const { data, error } = await supabase
-        .from('stock_sucursales')
-        .select(`
-          *,
-          producto:fk_id_producto(*),
-          zona:fk_id_zona(*)
-        `)
-        .order('created_at', { ascending: false })
+      // Cargar todos los registros sin límite de 1000
+      let allData: any[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
 
-      if (error) throw error
-      setStockSucursales(data || [])
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('stock_sucursales')
+          .select(`
+            *,
+            producto:fk_id_producto(*),
+            zona:fk_id_zona(*)
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+        
+        if (data && data.length > 0) {
+          allData = [...allData, ...data]
+          from += batchSize
+          hasMore = data.length === batchSize
+        } else {
+          hasMore = false
+        }
+      }
+
+      console.log(`✅ Stock sucursales cargados: ${allData.length} registros`)
+      setStockSucursales(allData)
     } catch (err) {
       setError('Error al cargar stock por sucursales')
       console.error('Error loading stock_sucursales:', err)

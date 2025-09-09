@@ -324,6 +324,24 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
     setCurrentPage(page)
   }
 
+  // Debug: mostrar datos disponibles
+  React.useEffect(() => {
+    if (filterZona !== "all") {
+      console.log('=== FILTRO ZONA DEBUG ===')
+      console.log('FilterZona seleccionado:', filterZona)
+      console.log('Stock sucursales disponibles:', stockSucursales.map(s => ({
+        id: s.id,
+        fk_id_zona: s.fk_id_zona,
+        fk_id_producto: s.fk_id_producto
+      })))
+      console.log('Zonas disponibles:', zonas.map(z => ({
+        id: z.id,
+        nombre: z.nombre
+      })))
+      console.log('========================')
+    }
+  }, [filterZona, stockSucursales, zonas])
+
   // Filtrar datos
   const filteredData = stockSucursales.filter(item => {
     const producto = productos.find(p => p.id === item.fk_id_producto)
@@ -334,10 +352,23 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
       zona?.nombre?.toLowerCase().includes(searchTerm.toLowerCase())
     
     const matchesProducto = filterProducto === "all" || item.fk_id_producto.toString() === filterProducto
-    const matchesZona = filterZona === "all" || item.fk_id_zona.toString() === filterZona
+    const matchesZona = filterZona === "all" || item.fk_id_zona.toString().trim() === filterZona.toString().trim()
     const matchesActivo = filterActivo === "all" || 
       (filterActivo === "active" && item.activo) ||
       (filterActivo === "inactive" && !item.activo)
+
+    // Debug logging para identificar el problema
+    if (filterZona !== "all" && !matchesZona) {
+      console.log('Filtro zona debug:', {
+        filterZona,
+        item_fk_id_zona: item.fk_id_zona,
+        item_fk_id_zona_string: item.fk_id_zona.toString(),
+        zona_encontrada: zona,
+        matchesZona,
+        comparacion: `"${item.fk_id_zona.toString()}" === "${filterZona}"`,
+        resultado: item.fk_id_zona.toString() === filterZona
+      })
+    }
 
     return matchesSearch && matchesProducto && matchesZona && matchesActivo
   })
@@ -603,6 +634,7 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>ID Producto</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Zona/Sucursal</TableHead>
                 <TableHead>Stock Actual</TableHead>
@@ -619,6 +651,9 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
                 
                 return (
                   <TableRow key={item.id}>
+                    <TableCell className="text-sm text-gray-600">
+                      #{item.fk_id_producto}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {producto?.descripcion || `Producto ${item.fk_id_producto}`}
                     </TableCell>

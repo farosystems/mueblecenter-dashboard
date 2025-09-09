@@ -300,6 +300,7 @@ export const ProductosPlanesSection = React.memo(({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>ID Producto</TableHead>
                 <TableHead>Producto</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Estado</TableHead>
@@ -314,6 +315,9 @@ export const ProductosPlanesSection = React.memo(({
                 
                 return (
                   <TableRow key={item.id}>
+                    <TableCell className="text-sm text-gray-600">
+                      #{item.fk_id_producto}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {producto?.descripcion || `Producto ${item.fk_id_producto}`}
                     </TableCell>

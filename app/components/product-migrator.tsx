@@ -15,9 +15,17 @@ interface ProductMigrationData {
   descripcion: string
   precio: number
   aplica_todos_plan?: boolean
-  fk_id_categoria?: number
+  fk_id_presentacion?: string
+  fk_id_linea?: string
+  fk_id_tipo?: string
+  presentacion_nombre?: string
+  linea_nombre?: string
+  tipo_nombre?: string
   fk_id_marca?: number
-  _categoria_nombre?: string
+  imagen?: string
+  _presentacion_nombre?: string
+  _linea_nombre?: string
+  _tipo_nombre?: string
   _marca_nombre?: string
   _validation_errors?: string[]
   [key: string]: any
@@ -83,13 +91,22 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         return
       }
 
-      // Obtener categorías y marcas válidas para validación
-      const { data: categorias } = await supabase.from('categorias').select('id, descripcion')
+      // Obtener presentaciones, líneas, tipos y marcas válidas para validación
+      const { data: presentaciones } = await supabase.from('presentaciones').select('id, nombre')
+      const { data: lineas } = await supabase.from('lineas').select('id, nombre')
+      const { data: tipos } = await supabase.from('tipos').select('id, nombre')
       const { data: marcas } = await supabase.from('marcas').select('id, descripcion')
       
-      const categoriasValidas = new Set(categorias?.map(c => c.id) || [])
+      const presentacionesValidasId = new Set(presentaciones?.map(p => p.id) || [])
+      const lineasValidasId = new Set(lineas?.map(l => l.id) || [])
+      const tiposValidosId = new Set(tipos?.map(t => t.id) || [])
       const marcasValidas = new Set(marcas?.map(m => m.id) || [])
-      const categoriasMap = new Map(categorias?.map(c => [c.id, c.descripcion]) || [])
+      const presentacionesMapId = new Map(presentaciones?.map(p => [p.id, p.nombre]) || [])
+      const presentacionesMapNombre = new Map(presentaciones?.map(p => [p.nombre.toLowerCase(), p.id]) || [])
+      const lineasMapId = new Map(lineas?.map(l => [l.id, l.nombre]) || [])
+      const lineasMapNombre = new Map(lineas?.map(l => [l.nombre.toLowerCase(), l.id]) || [])
+      const tiposMapId = new Map(tipos?.map(t => [t.id, t.nombre]) || [])
+      const tiposMapNombre = new Map(tipos?.map(t => [t.nombre.toLowerCase(), t.id]) || [])
       const marcasMap = new Map(marcas?.map(m => [m.id, m.descripcion]) || [])
 
       // Procesar y limpiar los datos
@@ -98,17 +115,102 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
           descripcion: String(row.descripcion || '').trim(),
           precio: Number(row.precio) || 0,
           aplica_todos_plan: Boolean(row.aplica_todos_plan),
+          imagen: row.imagen ? String(row.imagen).trim() : undefined,
+          presentacion_nombre: row.presentacion_nombre ? String(row.presentacion_nombre).trim() : undefined,
+          linea_nombre: row.linea_nombre ? String(row.linea_nombre).trim() : undefined,
+          tipo_nombre: row.tipo_nombre ? String(row.tipo_nombre).trim() : undefined,
         }
 
-        // Validar y procesar categoría
-        if (row.fk_id_categoria) {
-          const categoriaId = Number(row.fk_id_categoria)
-          if (!isNaN(categoriaId) && categoriasValidas.has(categoriaId)) {
-            processed.fk_id_categoria = categoriaId
-            processed._categoria_nombre = categoriasMap.get(categoriaId)
+        // Validar y procesar presentación (por ID o nombre)
+        if (row.fk_id_presentacion) {
+          const valorPresentacion = String(row.fk_id_presentacion).trim()
+          // Primero intentar como ID
+          if (presentacionesValidasId.has(valorPresentacion)) {
+            processed.fk_id_presentacion = valorPresentacion
+            processed._presentacion_nombre = presentacionesMapId.get(valorPresentacion)
+          } else {
+            // Si no es un ID válido, intentar como nombre
+            const nombreLower = valorPresentacion.toLowerCase()
+            const presentacionId = presentacionesMapNombre.get(nombreLower)
+            if (presentacionId) {
+              processed.fk_id_presentacion = presentacionId
+              processed._presentacion_nombre = valorPresentacion
+            } else {
+              processed._validation_errors = processed._validation_errors || []
+              processed._validation_errors.push(`Presentación "${valorPresentacion}" no existe (ni como ID ni como nombre)`)
+            }
+          }
+        } else if (processed.presentacion_nombre) {
+          const nombreLower = processed.presentacion_nombre.toLowerCase()
+          const presentacionId = presentacionesMapNombre.get(nombreLower)
+          if (presentacionId) {
+            processed.fk_id_presentacion = presentacionId
+            processed._presentacion_nombre = processed.presentacion_nombre
           } else {
             processed._validation_errors = processed._validation_errors || []
-            processed._validation_errors.push(`Categoría ID ${row.fk_id_categoria} no es válida`)
+            processed._validation_errors.push(`Presentación "${processed.presentacion_nombre}" no existe`)
+          }
+        }
+
+        // Validar y procesar línea (por ID o nombre)
+        if (row.fk_id_linea) {
+          const valorLinea = String(row.fk_id_linea).trim()
+          // Primero intentar como ID
+          if (lineasValidasId.has(valorLinea)) {
+            processed.fk_id_linea = valorLinea
+            processed._linea_nombre = lineasMapId.get(valorLinea)
+          } else {
+            // Si no es un ID válido, intentar como nombre
+            const nombreLower = valorLinea.toLowerCase()
+            const lineaId = lineasMapNombre.get(nombreLower)
+            if (lineaId) {
+              processed.fk_id_linea = lineaId
+              processed._linea_nombre = valorLinea
+            } else {
+              processed._validation_errors = processed._validation_errors || []
+              processed._validation_errors.push(`Línea "${valorLinea}" no existe (ni como ID ni como nombre)`)
+            }
+          }
+        } else if (processed.linea_nombre) {
+          const nombreLower = processed.linea_nombre.toLowerCase()
+          const lineaId = lineasMapNombre.get(nombreLower)
+          if (lineaId) {
+            processed.fk_id_linea = lineaId
+            processed._linea_nombre = processed.linea_nombre
+          } else {
+            processed._validation_errors = processed._validation_errors || []
+            processed._validation_errors.push(`Línea "${processed.linea_nombre}" no existe`)
+          }
+        }
+
+        // Validar y procesar tipo (por ID o nombre)
+        if (row.fk_id_tipo) {
+          const valorTipo = String(row.fk_id_tipo).trim()
+          // Primero intentar como ID
+          if (tiposValidosId.has(valorTipo)) {
+            processed.fk_id_tipo = valorTipo
+            processed._tipo_nombre = tiposMapId.get(valorTipo)
+          } else {
+            // Si no es un ID válido, intentar como nombre
+            const nombreLower = valorTipo.toLowerCase()
+            const tipoId = tiposMapNombre.get(nombreLower)
+            if (tipoId) {
+              processed.fk_id_tipo = tipoId
+              processed._tipo_nombre = valorTipo
+            } else {
+              processed._validation_errors = processed._validation_errors || []
+              processed._validation_errors.push(`Tipo "${valorTipo}" no existe (ni como ID ni como nombre)`)
+            }
+          }
+        } else if (processed.tipo_nombre) {
+          const nombreLower = processed.tipo_nombre.toLowerCase()
+          const tipoId = tiposMapNombre.get(nombreLower)
+          if (tipoId) {
+            processed.fk_id_tipo = tipoId
+            processed._tipo_nombre = processed.tipo_nombre
+          } else {
+            processed._validation_errors = processed._validation_errors || []
+            processed._validation_errors.push(`Tipo "${processed.tipo_nombre}" no existe`)
           }
         }
 
@@ -173,8 +275,11 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             descripcion: product.descripcion,
             precio: product.precio,
             aplica_todos_plan: product.aplica_todos_plan || false,
-            fk_id_categoria: product.fk_id_categoria || null,
+            presentacion_id: product.fk_id_presentacion || null,
+            linea_id: product.fk_id_linea || null,
+            tipo_id: product.fk_id_tipo || null,
             fk_id_marca: product.fk_id_marca || null,
+            imagen: product.imagen || null,
             activo: true // Por defecto activo
           }
 
@@ -303,8 +408,14 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     <li><strong>descripcion</strong> (obligatorio): Nombre del producto</li>
                     <li><strong>precio</strong> (obligatorio): Precio del producto</li>
                     <li><strong>aplica_todos_plan</strong> (opcional): TRUE/FALSE - Si el producto se asocia a todos los planes</li>
-                    <li><strong>fk_id_categoria</strong> (opcional): ID numérico de la categoría (se valida que exista)</li>
+                    <li><strong>fk_id_presentacion</strong> (opcional): ID o nombre de la presentación (se detecta automáticamente)</li>
+                    <li><strong>presentacion_nombre</strong> (opcional): Nombre de la presentación (alternativa al campo anterior)</li>
+                    <li><strong>fk_id_linea</strong> (opcional): ID o nombre de la línea (se detecta automáticamente)</li>
+                    <li><strong>linea_nombre</strong> (opcional): Nombre de la línea (alternativa al campo anterior)</li>
+                    <li><strong>fk_id_tipo</strong> (opcional): ID o nombre del tipo (se detecta automáticamente)</li>
+                    <li><strong>tipo_nombre</strong> (opcional): Nombre del tipo (alternativa al campo anterior)</li>
                     <li><strong>fk_id_marca</strong> (opcional): ID numérico de la marca (se valida que exista)</li>
+                    <li><strong>imagen</strong> (opcional): URL de la imagen del producto</li>
                     <li><strong>id</strong> (opcional): Si se incluye, actualiza el producto existente</li>
                   </ul>
                   <div className="space-y-2 text-sm">
@@ -312,7 +423,8 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                       <strong>Validaciones automáticas:</strong>
                     </p>
                     <ul className="list-disc list-inside text-xs space-y-1 text-blue-700">
-                      <li>Los IDs de categorías y marcas se verifican contra la base de datos</li>
+                      <li>Los campos de presentación, línea y tipo aceptan tanto IDs como nombres (se detecta automáticamente)</li>
+                      <li>Los IDs de marcas se verifican contra la base de datos</li>
                       <li>Si un producto tiene <code>aplica_todos_plan = TRUE</code>, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas en <code>productos_planes_default</code></li>
                       <li>Los productos con errores de validación se mostrarán en rojo y no se procesarán</li>
                     </ul>
@@ -359,8 +471,11 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Todos los Planes</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Presentación</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Línea</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Imagen</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                   </tr>
@@ -387,10 +502,26 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                         )}
                       </td>
                       <td className="px-3 py-2 text-sm text-gray-900">
-                        {product.fk_id_categoria ? (
+                        {product.fk_id_presentacion ? (
                           <div>
-                            <div className="font-medium">ID: {product.fk_id_categoria}</div>
-                            <div className="text-xs text-gray-500">{product._categoria_nombre}</div>
+                            <div className="font-medium">ID: {product.fk_id_presentacion}</div>
+                            <div className="text-xs text-gray-500">{product._presentacion_nombre}</div>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900">
+                        {product.fk_id_linea ? (
+                          <div>
+                            <div className="font-medium">ID: {product.fk_id_linea}</div>
+                            <div className="text-xs text-gray-500">{product._linea_nombre}</div>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900">
+                        {product.fk_id_tipo ? (
+                          <div>
+                            <div className="font-medium">ID: {product.fk_id_tipo}</div>
+                            <div className="text-xs text-gray-500">{product._tipo_nombre}</div>
                           </div>
                         ) : '-'}
                       </td>
@@ -399,6 +530,23 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                           <div>
                             <div className="font-medium">ID: {product.fk_id_marca}</div>
                             <div className="text-xs text-gray-500">{product._marca_nombre}</div>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-gray-900">
+                        {product.imagen ? (
+                          <div className="flex items-center space-x-2">
+                            <img 
+                              src={product.imagen} 
+                              alt="Vista previa" 
+                              className="w-8 h-8 object-cover rounded border"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.jpg'
+                              }}
+                            />
+                            <div className="text-xs text-gray-500 max-w-20 truncate">
+                              {product.imagen}
+                            </div>
                           </div>
                         ) : '-'}
                       </td>
@@ -435,7 +583,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                   ))}
                   {previewData.length > 50 && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-2 text-sm text-gray-500 text-center">
+                      <td colSpan={10} className="px-3 py-2 text-sm text-gray-500 text-center">
                         ... y {previewData.length - 50} productos más
                       </td>
                     </tr>
