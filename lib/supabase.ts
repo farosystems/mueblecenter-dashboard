@@ -66,6 +66,7 @@ export interface Producto {
   imagen_3?: string
   imagen_4?: string
   imagen_5?: string
+  cucardas?: string
   destacado?: boolean
   activo?: boolean
   aplica_todos_plan?: boolean

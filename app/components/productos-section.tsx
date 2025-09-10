@@ -17,6 +17,7 @@ import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
 import { JerarquiaMigrator } from "./jerarquia-migrator"
+import { DescripcionMigrator } from "./descripcion-migrator"
 import { Producto, Categoria, Marca, Presentacion, Linea, Tipo } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 
@@ -51,8 +52,10 @@ export const ProductosSection = React.memo(({
   const [isCreating, setIsCreating] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [searchTerm, setSearchTerm] = useState("")
-  const [filterCategoria, setFilterCategoria] = useState("all")
-  const [filterMarca, setFilterMarca] = useState("all")
+  const [filterPresentacion, setFilterPresentacion] = useState("all")
+  const [filterLinea, setFilterLinea] = useState("all")
+  const [filterTipo, setFilterTipo] = useState("all")
+  const [filterDestacado, setFilterDestacado] = useState("all")
   const [filterEstado, setFilterEstado] = useState("all")
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -66,6 +69,7 @@ export const ProductosSection = React.memo(({
     tipo_id: undefined as string | undefined,
     fk_id_marca: undefined as string | undefined,
     imagenes: [] as string[],
+    cucardas: "",
     destacado: false,
     activo: true,
     aplica_todos_plan: false,
@@ -97,18 +101,31 @@ export const ProductosSection = React.memo(({
       })
     }
 
-    // Filtro por categoría
-    if (filterCategoria !== "all") {
+    // Filtro por presentación
+    if (filterPresentacion !== "all") {
       filtered = filtered.filter(producto => 
-        producto.fk_id_categoria?.toString() === filterCategoria
+        producto.presentacion_id?.toString() === filterPresentacion
       )
     }
 
-    // Filtro por marca
-    if (filterMarca !== "all") {
+    // Filtro por línea
+    if (filterLinea !== "all") {
       filtered = filtered.filter(producto => 
-        producto.fk_id_marca?.toString() === filterMarca
+        producto.linea_id?.toString() === filterLinea
       )
+    }
+
+    // Filtro por tipo
+    if (filterTipo !== "all") {
+      filtered = filtered.filter(producto => 
+        producto.tipo_id?.toString() === filterTipo
+      )
+    }
+
+    // Filtro por destacado
+    if (filterDestacado !== "all") {
+      const isDestacado = filterDestacado === "destacado"
+      filtered = filtered.filter(producto => producto.destacado === isDestacado)
     }
 
     // Filtro por estado (activo/inactivo)
@@ -118,7 +135,7 @@ export const ProductosSection = React.memo(({
     }
 
     return filtered
-  }, [productos, searchTerm, filterCategoria, filterMarca, filterEstado])
+  }, [productos, searchTerm, filterPresentacion, filterLinea, filterTipo, filterDestacado, filterEstado])
 
   // Funciones de paginación
   const totalPages = Math.ceil(filteredProductos.length / itemsPerPage)
@@ -134,7 +151,7 @@ export const ProductosSection = React.memo(({
   // Resetear página cuando cambie la vista, el número de productos, el término de búsqueda o los filtros
   useEffect(() => {
     setCurrentPage(1)
-  }, [viewMode, filteredProductos.length, searchTerm, filterCategoria, filterMarca, filterEstado])
+  }, [viewMode, filteredProductos.length, searchTerm, filterPresentacion, filterLinea, filterTipo, filterDestacado, filterEstado])
 
   // Limpiar timer al desmontar
   useEffect(() => {
@@ -294,6 +311,7 @@ export const ProductosSection = React.memo(({
       tipo_id: undefined,
       fk_id_marca: undefined,
       imagenes: [],
+      cucardas: "",
       destacado: false,
       activo: true,
       aplica_todos_plan: false,
@@ -324,6 +342,7 @@ export const ProductosSection = React.memo(({
       tipo_id: producto.tipo_id?.toString(),
       fk_id_marca: producto.fk_id_marca?.toString(),
       imagenes: productImages,
+      cucardas: producto.cucardas || "",
       destacado: producto.destacado || false,
       activo: producto.activo ?? true,
       aplica_todos_plan: producto.aplica_todos_plan || false,
@@ -403,6 +422,7 @@ export const ProductosSection = React.memo(({
         imagen_3: formData.imagenes[2] && formData.imagenes[2].trim() !== '' ? formData.imagenes[2] : undefined,
         imagen_4: formData.imagenes[3] && formData.imagenes[3].trim() !== '' ? formData.imagenes[3] : undefined,
         imagen_5: formData.imagenes[4] && formData.imagenes[4].trim() !== '' ? formData.imagenes[4] : undefined,
+        cucardas: formData.cucardas.trim() !== '' ? formData.cucardas : undefined,
         destacado: formData.destacado,
         activo: formData.activo,
         aplica_todos_plan: formData.aplica_todos_plan,
@@ -452,13 +472,14 @@ export const ProductosSection = React.memo(({
 
   const handleDeleteConfirm = async () => {
     if (productToDelete) {
-      // Eliminar todas las imágenes del producto del storage
+      // Eliminar todas las imágenes del producto del storage (incluye cucarda)
       const productImages = [
         productToDelete.imagen,
         productToDelete.imagen_2,
         productToDelete.imagen_3,
         productToDelete.imagen_4,
-        productToDelete.imagen_5
+        productToDelete.imagen_5,
+        productToDelete.cucardas
       ].filter(Boolean) as string[]
 
             for (const imageUrl of productImages) {
@@ -498,13 +519,14 @@ export const ProductosSection = React.memo(({
     try {
       console.log('Limpiando todas las imágenes del producto:', producto.id)
       
-      // Obtener todas las imágenes del producto
+      // Obtener todas las imágenes del producto (incluye cucarda)
       const productImages = [
         producto.imagen,
         producto.imagen_2,
         producto.imagen_3,
         producto.imagen_4,
-        producto.imagen_5
+        producto.imagen_5,
+        producto.cucardas
       ].filter(Boolean) as string[]
 
       // Eliminar imágenes de Supabase storage si existen
@@ -533,13 +555,14 @@ export const ProductosSection = React.memo(({
         }
       }
 
-      // Limpiar todos los campos de imagen en la base de datos
+      // Limpiar todos los campos de imagen en la base de datos (incluye cucarda)
       const updates = {
         imagen: undefined,
         imagen_2: undefined,
         imagen_3: undefined,
         imagen_4: undefined,
-        imagen_5: undefined
+        imagen_5: undefined,
+        cucardas: undefined
       }
 
       console.log('Limpiando campos de imagen en la BD:', updates)
@@ -561,13 +584,16 @@ export const ProductosSection = React.memo(({
       // Buscar el índice de 'imagenes' en el path
       const imagenesIndex = pathParts.findIndex(part => part === 'imagenes')
       if (imagenesIndex !== -1 && imagenesIndex + 2 < pathParts.length) {
-        // Tomar todo después de 'imagenes' (incluyendo 'productos/filename.jpg')
+        // Tomar todo después de 'imagenes' (incluyendo 'productos/filename.jpg' o 'cucardas/filename.jpg')
         const filePath = pathParts.slice(imagenesIndex + 1).join('/')
         return filePath
       }
       
-      // Fallback: extraer solo el nombre del archivo
+      // Fallback: determinar si es cucarda o producto basándose en el nombre del archivo
       const fileName = pathParts[pathParts.length - 1]
+      if (fileName.startsWith('cucarda_')) {
+        return `cucardas/${fileName}`
+      }
       return `productos/${fileName}`
     } catch (error) {
       console.error('Error extrayendo path de URL:', error)
@@ -618,6 +644,10 @@ export const ProductosSection = React.memo(({
             lineas={lineas}
             tipos={tipos}
             onUpdateProducto={onUpdateProducto} 
+          />
+          <DescripcionMigrator
+            productos={productos}
+            onUpdateProducto={onUpdateProducto}
           />
                                               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     if (open) {
@@ -924,6 +954,175 @@ export const ProductosSection = React.memo(({
                     </SelectContent>
                   </Select>
                 </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="text-sm font-medium text-gray-700 mb-3 border-b pb-2">Cucarda</div>
+                <div className="space-y-3">
+                  <Label>Imagen de Cucarda (opcional)</Label>
+                  
+                  {/* Vista previa de la cucarda */}
+                  {formData.cucardas && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Vista previa de cucarda</span>
+                      </div>
+                      
+                      <div className="relative">
+                        <div className="aspect-square w-24 h-24 bg-gray-100 rounded-lg overflow-hidden border mx-auto">
+                          <img
+                            src={formData.cucardas}
+                            alt="Cucarda"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = '/placeholder.jpg'
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Botón eliminar cucarda */}
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2 h-6 w-6 p-0"
+                          onClick={async () => {
+                            // Eliminar cucarda del storage si es de Supabase
+                            if (formData.cucardas.includes('supabase.co')) {
+                              try {
+                                const filePath = extractFilePathFromUrl(formData.cucardas)
+                                console.log('Eliminando cucarda de Supabase:', filePath)
+                                
+                                const { error } = await supabase.storage
+                                  .from('imagenes')
+                                  .remove([filePath])
+                                
+                                if (error) {
+                                  console.error('Error eliminando cucarda del storage:', error)
+                                }
+                              } catch (error) {
+                                console.error('Error al eliminar cucarda:', error)
+                              }
+                            }
+                            
+                            // Limpiar cucarda
+                            setFormData({ ...formData, cucardas: "" })
+                          }}
+                          disabled={isCreating}
+                          title="Eliminar cucarda"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Sección de subida de cucarda */}
+                  <div className="space-y-3">
+                    <div
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors"
+                      onDrop={async (e) => {
+                        e.preventDefault()
+                        if (isCreating) return
+                        
+                        const files = e.dataTransfer.files
+                        if (files.length === 0) return
+                        
+                        const file = files[0] // Solo una cucarda
+                        
+                        try {
+                          if (!file.type.startsWith('image/')) {
+                            throw new Error('Solo se permiten archivos de imagen')
+                          }
+                          if (file.size > 5 * 1024 * 1024) {
+                            throw new Error('El archivo es demasiado grande. Máximo 5MB')
+                          }
+                          
+                          const fileExt = file.name.split('.').pop()
+                          const fileName = `cucarda_${Math.random().toString(36).substring(2)}.${fileExt}`
+                          const filePath = `cucardas/${fileName}`
+                          
+                          const { data, error } = await supabase.storage
+                            .from('imagenes')
+                            .upload(filePath, file, {
+                              cacheControl: '3600',
+                              upsert: false
+                            })
+                          
+                          if (error) throw error
+                          
+                          const { data: { publicUrl } } = supabase.storage
+                            .from('imagenes')
+                            .getPublicUrl(filePath)
+                          
+                          setFormData({ ...formData, cucardas: publicUrl })
+                        } catch (error) {
+                          const errorMessage = error instanceof Error ? error.message : 'Error al subir cucarda'
+                          alert(errorMessage)
+                        }
+                      }}
+                      onDragOver={(e) => e.preventDefault()}
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          if (isCreating) return
+                          
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          
+                          try {
+                            if (!file.type.startsWith('image/')) {
+                              throw new Error('Solo se permiten archivos de imagen')
+                            }
+                            if (file.size > 5 * 1024 * 1024) {
+                              throw new Error('El archivo es demasiado grande. Máximo 5MB')
+                            }
+                            
+                            const fileExt = file.name.split('.').pop()
+                            const fileName = `cucarda_${Math.random().toString(36).substring(2)}.${fileExt}`
+                            const filePath = `cucardas/${fileName}`
+                            
+                            const { data, error } = await supabase.storage
+                              .from('imagenes')
+                              .upload(filePath, file, {
+                                cacheControl: '3600',
+                                upsert: false
+                              })
+                            
+                            if (error) throw error
+                            
+                            const { data: { publicUrl } } = supabase.storage
+                              .from('imagenes')
+                              .getPublicUrl(filePath)
+                            
+                            setFormData({ ...formData, cucardas: publicUrl })
+                          } catch (error) {
+                            const errorMessage = error instanceof Error ? error.message : 'Error al subir cucarda'
+                            alert(errorMessage)
+                          }
+                          
+                          e.target.value = ''
+                        }}
+                        className="hidden"
+                        id="cucarda-upload"
+                        disabled={isCreating}
+                      />
+                      <label htmlFor="cucarda-upload" className="cursor-pointer">
+                        <div className="flex flex-col items-center space-y-2">
+                          <Plus className="h-8 w-8 text-gray-400" />
+                          <p className="text-sm font-medium text-gray-700">
+                            Arrastra cucarda aquí o haz clic para seleccionar
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            PNG, JPG, GIF hasta 5MB
+                          </p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1272,31 +1471,62 @@ export const ProductosSection = React.memo(({
               />
             </div>
             <div className="flex gap-2">
-              <Select value={filterCategoria} onValueChange={setFilterCategoria}>
+              <Select value={filterPresentacion} onValueChange={setFilterPresentacion}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todas las categorías" />
+                  <SelectValue placeholder="Todas las presentaciones" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las categorías</SelectItem>
-                  {categorias.map((categoria) => (
-                    <SelectItem key={categoria.id} value={categoria.id.toString()}>
-                      {categoria.descripcion}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">Todas las presentaciones</SelectItem>
+                  {presentaciones
+                    .filter(p => p.activo)
+                    .map((presentacion) => (
+                      <SelectItem key={presentacion.id} value={presentacion.id}>
+                        {presentacion.nombre}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               
-              <Select value={filterMarca} onValueChange={setFilterMarca}>
+              <Select value={filterLinea} onValueChange={setFilterLinea}>
                 <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Todas las marcas" />
+                  <SelectValue placeholder="Todas las líneas" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las marcas</SelectItem>
-                  {marcas.map((marca) => (
-                    <SelectItem key={marca.id} value={marca.id.toString()}>
-                      {marca.descripcion}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all">Todas las líneas</SelectItem>
+                  {lineas
+                    .filter(l => l.activo)
+                    .map((linea) => (
+                      <SelectItem key={linea.id} value={linea.id}>
+                        {linea.nombre}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={filterTipo} onValueChange={setFilterTipo}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Todos los tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los tipos</SelectItem>
+                  {tipos
+                    .filter(t => t.activo)
+                    .map((tipo) => (
+                      <SelectItem key={tipo.id} value={tipo.id}>
+                        {tipo.nombre}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              
+              <Select value={filterDestacado} onValueChange={setFilterDestacado}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Destacado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="destacado">Destacado</SelectItem>
+                  <SelectItem value="normal">Normal</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -1324,6 +1554,7 @@ export const ProductosSection = React.memo(({
               <TableHead>Descripción</TableHead>
               <TableHead>Desc. Det.</TableHead>
               <TableHead>Imágenes</TableHead>
+              <TableHead>Cucarda</TableHead>
               <TableHead>Presentación</TableHead>
               <TableHead>Línea</TableHead>
               <TableHead>Tipo</TableHead>
@@ -1379,6 +1610,23 @@ export const ProductosSection = React.memo(({
                         <span className="text-gray-400 text-xs">Sin imágenes</span>
                       )}
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {producto.cucardas ? (
+                      <div className="w-8 h-8 border rounded overflow-hidden">
+                        <img
+                          src={producto.cucardas}
+                          alt={`${producto.descripcion} - Cucarda`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder.jpg'
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">Sin cucarda</span>
+                    )}
                   </TableCell>
                   <TableCell>{producto.presentacion?.nombre || '-'}</TableCell>
                   <TableCell>{producto.linea?.nombre || '-'}</TableCell>
@@ -1472,6 +1720,21 @@ export const ProductosSection = React.memo(({
                       <div className="text-gray-400 text-center">
                         <div className="text-2xl mb-2">📷</div>
                         <div className="text-xs">Sin imagen</div>
+                      </div>
+                    </div>
+                  )}
+                  {producto.cucardas && (
+                    <div className="absolute top-2 left-2">
+                      <div className="w-8 h-8 border rounded-full overflow-hidden bg-white shadow-md">
+                        <img
+                          src={producto.cucardas}
+                          alt="Cucarda"
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder.jpg'
+                          }}
+                        />
                       </div>
                     </div>
                   )}
