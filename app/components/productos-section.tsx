@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette } from "lucide-react"
+import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette, CheckSquare, Square, Trash } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -58,6 +58,9 @@ export const ProductosSection = React.memo(({
   const [filterDestacado, setFilterDestacado] = useState("all")
   const [filterEstado, setFilterEstado] = useState("all")
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [isSelectionMode, setIsSelectionMode] = useState(false)
+  const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set())
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const itemsPerPage = 15
   const [formData, setFormData] = useState({
@@ -472,6 +475,18 @@ export const ProductosSection = React.memo(({
 
   const handleDeleteConfirm = async () => {
     if (productToDelete) {
+      // Eliminar registros relacionados en productos_planes_default
+      await supabase
+        .from('producto_planes_default')
+        .delete()
+        .eq('fk_id_producto', productToDelete.id)
+
+      // Eliminar registros relacionados en stock_sucursales
+      await supabase
+        .from('stock_sucursales')
+        .delete()
+        .eq('fk_id_producto', productToDelete.id)
+
       // Eliminar todas las imágenes del producto del storage (incluye cucarda)
       const productImages = [
         productToDelete.imagen,
@@ -609,6 +624,86 @@ export const ProductosSection = React.memo(({
     setProductToDelete(null)
   }
 
+  // Funciones para modo de selección múltiple
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode)
+    setSelectedProducts(new Set())
+  }
+
+  const toggleProductSelection = (productId: number) => {
+    const newSelection = new Set(selectedProducts)
+    if (newSelection.has(productId)) {
+      newSelection.delete(productId)
+    } else {
+      newSelection.add(productId)
+    }
+    setSelectedProducts(newSelection)
+  }
+
+  const selectAllProducts = () => {
+    if (selectedProducts.size === currentProductos.length) {
+      setSelectedProducts(new Set())
+    } else {
+      setSelectedProducts(new Set(currentProductos.map(p => p.id)))
+    }
+  }
+
+  const handleBulkDelete = () => {
+    if (selectedProducts.size > 0) {
+      setIsBulkDeleteDialogOpen(true)
+    }
+  }
+
+  const confirmBulkDelete = async () => {
+    try {
+      for (const productId of selectedProducts) {
+        const producto = productos.find(p => p.id === productId)
+        if (producto) {
+          // Eliminar registros relacionados en productos_planes_default
+          await supabase
+            .from('producto_planes_default')
+            .delete()
+            .eq('fk_id_producto', productId)
+
+          // Eliminar registros relacionados en stock_sucursales
+          await supabase
+            .from('stock_sucursales')
+            .delete()
+            .eq('fk_id_producto', productId)
+
+          // Eliminar todas las imágenes del producto del storage
+          const productImages = [
+            producto.imagen,
+            producto.imagen_2,
+            producto.imagen_3,
+            producto.imagen_4,
+            producto.imagen_5,
+            producto.cucardas
+          ].filter(Boolean) as string[]
+
+          for (const imageUrl of productImages) {
+            try {
+              const isSupabaseImage = imageUrl.includes('supabase.co')
+              if (isSupabaseImage) {
+                const filePath = extractFilePathFromUrl(imageUrl)
+                await supabase.storage.from('imagenes').remove([filePath])
+              }
+            } catch (error) {
+              console.error('Error al eliminar imagen:', error)
+            }
+          }
+
+          await onDeleteProducto(productId)
+        }
+      }
+      setSelectedProducts(new Set())
+      setIsSelectionMode(false)
+      setIsBulkDeleteDialogOpen(false)
+    } catch (error) {
+      console.error('Error al eliminar productos:', error)
+    }
+  }
+
   return (
     <>
       <Card>
@@ -616,6 +711,33 @@ export const ProductosSection = React.memo(({
           <div className="flex items-center justify-between">
         <CardTitle>Gestión de Productos</CardTitle>
         <div className="flex items-center space-x-2">
+          {isSelectionMode && (
+            <div className="flex items-center space-x-2 bg-blue-50 px-3 py-2 rounded-lg border border-blue-200">
+              <span className="text-blue-700 text-sm font-medium">
+                {selectedProducts.size} seleccionados
+              </span>
+              {selectedProducts.size > 0 && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBulkDelete}
+                  className="h-7"
+                >
+                  <Trash className="h-3 w-3 mr-1" />
+                  Eliminar ({selectedProducts.size})
+                </Button>
+              )}
+            </div>
+          )}
+          <Button
+            variant={isSelectionMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleSelectionMode}
+            className="h-8"
+          >
+            <CheckSquare className="h-4 w-4 mr-2" />
+            {isSelectionMode ? "Salir de selección" : "Selección múltiple"}
+          </Button>
           <div className="flex items-center border rounded-lg p-1">
             <Button
               variant={viewMode === 'table' ? 'default' : 'ghost'}
@@ -637,7 +759,7 @@ export const ProductosSection = React.memo(({
           <ExcelGenerator productos={productos} />
           <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
               <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
-          <ProductMigrator onMigrationComplete={() => window.location.reload()} />
+          <ProductMigrator onMigrationComplete={() => {}} />
           <JerarquiaMigrator 
             productos={productos}
             presentaciones={presentaciones}
@@ -1550,6 +1672,22 @@ export const ProductosSection = React.memo(({
           <Table>
             <TableHeader>
                           <TableRow>
+              {isSelectionMode && (
+                <TableHead className="w-12">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAllProducts}
+                    className="h-8 w-8 p-0"
+                  >
+                    {selectedProducts.size === currentProductos.length && currentProductos.length > 0 ? (
+                      <CheckSquare className="h-4 w-4" />
+                    ) : (
+                      <Square className="h-4 w-4" />
+                    )}
+                  </Button>
+                </TableHead>
+              )}
               <TableHead>ID</TableHead>
               <TableHead>Descripción</TableHead>
               <TableHead>Desc. Det.</TableHead>
@@ -1569,6 +1707,22 @@ export const ProductosSection = React.memo(({
             <TableBody>
                   {currentProductos.map((producto) => (
                 <TableRow key={producto.id}>
+                  {isSelectionMode && (
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleProductSelection(producto.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        {selectedProducts.has(producto.id) ? (
+                          <CheckSquare className="h-4 w-4 text-blue-600" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </TableCell>
+                  )}
                   <TableCell>{producto.id}</TableCell>
                   <TableCell className="font-medium">{producto.descripcion}</TableCell>
                   <TableCell>
@@ -1705,6 +1859,22 @@ export const ProductosSection = React.memo(({
                 {currentProductos.map((producto) => (
               <Card key={producto.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <div className="aspect-square bg-gray-100 relative">
+                  {isSelectionMode && (
+                    <div className="absolute top-2 left-2 z-10">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => toggleProductSelection(producto.id)}
+                        className="h-8 w-8 p-0 bg-white bg-opacity-90 hover:bg-opacity-100"
+                      >
+                        {selectedProducts.has(producto.id) ? (
+                          <CheckSquare className="h-4 w-4 text-blue-600" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                   {producto.imagen ? (
                       <img
                         src={producto.imagen}
@@ -1724,7 +1894,7 @@ export const ProductosSection = React.memo(({
                     </div>
                   )}
                   {producto.cucardas && (
-                    <div className="absolute top-2 left-2">
+                    <div className={`absolute top-2 ${isSelectionMode ? 'left-12' : 'left-2'} transition-all duration-200`}>
                       <div className="w-8 h-8 border rounded-full overflow-hidden bg-white shadow-md">
                         <img
                           src={producto.cucardas}
@@ -1870,6 +2040,64 @@ export const ProductosSection = React.memo(({
             >
               Eliminar
             </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Diálogo de confirmación de borrado masivo */}
+    <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+      <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Confirmar eliminación masiva</DialogTitle>
+        </DialogHeader>
+        
+        <div className="space-y-4">
+          <div>
+            <p className="text-gray-700 text-sm">
+              ¿Estás seguro de que quieres eliminar <strong>{selectedProducts.size}</strong> productos seleccionados?
+            </p>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="flex items-center">
+              <span className="text-yellow-600 text-lg mr-2">⚠️</span>
+              <span className="font-medium text-yellow-800 text-sm">Atención</span>
+            </div>
+            <p className="text-yellow-700 text-xs mt-1">
+              Esta acción no se puede deshacer. Los productos serán eliminados permanentemente junto con todas sus imágenes.
+            </p>
+          </div>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+            <p className="text-red-800 text-xs font-medium mb-2">Productos a eliminar:</p>
+            <div className="space-y-1">
+              {Array.from(selectedProducts).map(productId => {
+                const producto = productos.find(p => p.id === productId)
+                return producto ? (
+                  <div key={productId} className="text-red-700 text-xs">
+                    #{producto.id} - {producto.descripcion}
+                  </div>
+                ) : null
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-2 pt-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsBulkDeleteDialogOpen(false)} 
+            size="sm"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={confirmBulkDelete}
+            size="sm"
+          >
+            Eliminar {selectedProducts.size} productos
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

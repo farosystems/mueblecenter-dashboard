@@ -27,6 +27,7 @@ interface ProductMigrationData {
   _linea_nombre?: string
   _tipo_nombre?: string
   _marca_nombre?: string
+  _stock?: { [key: string]: number }
   _validation_errors?: string[]
   [key: string]: any
 }
@@ -81,21 +82,59 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         return
       }
 
-      // Validar que las columnas requeridas existen
-      const requiredColumns = ['descripcion', 'precio']
+      // Validar que las columnas requeridas existen (nuevos nombres)
+      const requiredColumns = ['Descripción', 'Precio']
       const firstRow = data[0]
-      const missingColumns = requiredColumns.filter(col => !(col in firstRow))
+      const missingColumns = requiredColumns.filter(col => !(col in firstRow) && !(col.toLowerCase() in firstRow))
       
       if (missingColumns.length > 0) {
         alert(`El archivo Excel debe contener las siguientes columnas: ${missingColumns.join(', ')}`)
         return
       }
 
-      // Obtener presentaciones, líneas, tipos y marcas válidas para validación
+      // Obtener presentaciones, líneas, tipos, marcas y zonas para validación
       const { data: presentaciones } = await supabase.from('presentaciones').select('id, nombre')
       const { data: lineas } = await supabase.from('lineas').select('id, nombre')
       const { data: tipos } = await supabase.from('tipos').select('id, nombre')
       const { data: marcas } = await supabase.from('marcas').select('id, descripcion')
+      
+      console.log('🔍 Obteniendo zonas de la base de datos...')
+      
+      let zonas = null
+      let zonasError = null
+      
+      try {
+        const result = await supabase.from('zonas').select('id, nombre')
+        zonas = result.data
+        zonasError = result.error
+        
+        console.log('📥 Resultado consulta zonas:', { zonas, zonasError })
+        
+        if (zonasError) {
+          console.error('❌ Error al obtener zonas:', zonasError)
+          // No detener la migración, crear zonas por defecto
+          console.log('⚠️ Creando zonas por defecto para prueba')
+          zonas = [
+            { id: 1, nombre: 'Central' },
+            { id: 2, nombre: 'Cardales' },
+            { id: 3, nombre: 'Matheu' },
+            { id: 4, nombre: 'Garin' },
+            { id: 5, nombre: 'Maschwitz' },
+            { id: 6, nombre: 'Capilla' }
+          ]
+        }
+      } catch (error) {
+        console.error('💥 Exception al obtener zonas:', error)
+        // Crear zonas por defecto
+        zonas = [
+          { id: 1, nombre: 'Central' },
+          { id: 2, nombre: 'Cardales' },
+          { id: 3, nombre: 'Matheu' },
+          { id: 4, nombre: 'Garin' },
+          { id: 5, nombre: 'Maschwitz' },
+          { id: 6, nombre: 'Capilla' }
+        ]
+      }
       
       const presentacionesValidasId = new Set(presentaciones?.map(p => p.id) || [])
       const lineasValidasId = new Set(lineas?.map(l => l.id) || [])
@@ -108,18 +147,120 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
       const tiposMapId = new Map(tipos?.map(t => [t.id, t.nombre]) || [])
       const tiposMapNombre = new Map(tipos?.map(t => [t.nombre.toLowerCase(), t.id]) || [])
       const marcasMap = new Map(marcas?.map(m => [m.id, m.descripcion]) || [])
+      
+      // Mapear zonas por nombre para el stock
+      console.log('✅ Zonas obtenidas de la BD:', zonas)
+      
+      if (!zonas || zonas.length === 0) {
+        console.error('❌ No se obtuvieron zonas de la base de datos')
+        alert('No se encontraron zonas en la base de datos. Verifica que la tabla "zonas" tenga datos.')
+        return
+      }
+      
+      const zonasMap = new Map(zonas.map(z => {
+        const nombreLower = z.nombre.toLowerCase().trim()
+        console.log(`🗺️ Mapeando zona: "${z.nombre}" (ID: ${z.id}) -> "${nombreLower}"`)
+        return [nombreLower, z.id]
+      }))
+      
+      console.log('✅ Mapa de zonas creado:', Array.from(zonasMap.entries()))
+      const zonasEsperadas = ['central', 'cardales', 'matheu', 'garin', 'maschwitz', 'capilla']
+      
+      console.log('🎯 Zonas esperadas en Excel:', zonasEsperadas)
+      
+      // Verificar qué zonas esperadas están disponibles
+      zonasEsperadas.forEach(zona => {
+        if (zonasMap.has(zona)) {
+          console.log(`✅ Zona "${zona}" disponible con ID: ${zonasMap.get(zona)}`)
+        } else {
+          console.warn(`⚠️ Zona "${zona}" NO encontrada en la BD`)
+        }
+      })
 
+      // Obtener productos existentes para verificar duplicados por descripción
+      const { data: existingProducts } = await supabase
+        .from('productos')
+        .select('id, descripcion')
+      
+      const productsByDescription = new Map(
+        existingProducts?.map(p => [p.descripcion.toLowerCase().trim(), p.id]) || []
+      )
+
+      // Mostrar todas las columnas disponibles en el Excel
+      console.log('Columnas disponibles en el Excel:', Object.keys(data[0] || {}))
+      
       // Procesar y limpiar los datos
       const processedData = data.map((row, index) => {
+        console.log(`\n--- Procesando fila ${index + 1} ---`)
+        console.log('Datos completos de la fila:', row)
+        
+        // Función helper para obtener el valor de una columna (con múltiples variaciones de nombre)
+        const getValue = (variations: string[]) => {
+          for (const variation of variations) {
+            if (row[variation] !== undefined && row[variation] !== null) {
+              return row[variation]
+            }
+          }
+          return undefined
+        }
+
         const processed: ProductMigrationData = {
-          descripcion: String(row.descripcion || '').trim(),
-          precio: Number(row.precio) || 0,
+          descripcion: String(getValue(['Descripción', 'descripcion', 'descripción']) || '').trim(),
+          precio: Number(getValue(['Precio', 'precio']) || 0),
           aplica_todos_plan: Boolean(row.aplica_todos_plan),
           imagen: row.imagen ? String(row.imagen).trim() : undefined,
-          presentacion_nombre: row.presentacion_nombre ? String(row.presentacion_nombre).trim() : undefined,
-          linea_nombre: row.linea_nombre ? String(row.linea_nombre).trim() : undefined,
-          tipo_nombre: row.tipo_nombre ? String(row.tipo_nombre).trim() : undefined,
+          presentacion_nombre: getValue(['Presentacion', 'presentacion', 'presentación']) ? 
+            String(getValue(['Presentacion', 'presentacion', 'presentación'])).trim() : undefined,
+          linea_nombre: getValue(['Línea', 'linea', 'Linea']) ? 
+            String(getValue(['Línea', 'linea', 'Linea'])).trim() : undefined,
+          tipo_nombre: getValue(['Tipo', 'tipo']) ? 
+            String(getValue(['Tipo', 'tipo'])).trim() : undefined,
+          _marca_nombre: getValue(['Marca', 'marca']) ? 
+            String(getValue(['Marca', 'marca'])).trim() : undefined,
         }
+
+        // Procesar imagen
+        const imagenValue = getValue(['imagen', 'Imagen'])
+        console.log(`Procesando imagen para producto ${index + 1}:`, imagenValue)
+        if (imagenValue) {
+          processed.imagen = String(imagenValue).trim()
+          console.log(`  Imagen asignada: ${processed.imagen}`)
+        } else {
+          console.log(`  No se encontró campo imagen`)
+        }
+
+        // Procesar stock de sucursales
+        const stockData: { [key: string]: number } = {}
+        console.log(`Procesando stock para producto ${index + 1}:`, processed.descripcion)
+        
+        for (const zona of zonasEsperadas) {
+          const variacionesNombre = [zona.charAt(0).toUpperCase() + zona.slice(1), zona, zona.toUpperCase()]
+          let stockValue = null
+          
+          for (const variacion of variacionesNombre) {
+            stockValue = getValue([variacion])
+            if (stockValue !== undefined && stockValue !== null) {
+              console.log(`  Zona ${zona}: encontrado como "${variacion}" = ${stockValue}`)
+              break
+            }
+          }
+          
+          if (stockValue === null) {
+            console.log(`  Zona ${zona}: NO encontrado (probando: ${variacionesNombre.join(', ')})`)
+          }
+          
+          if (stockValue !== undefined && stockValue !== null && stockValue !== '') {
+            const stockNumerico = Number(stockValue) || 0
+            if (stockNumerico > 0) {
+              stockData[zona] = stockNumerico
+              console.log(`    Stock asignado para ${zona}: ${stockNumerico}`)
+            } else {
+              console.log(`    Stock ${zona} es 0 o inválido: ${stockValue}`)
+            }
+          }
+        }
+        processed._stock = stockData
+        console.log(`Stock final para ${processed.descripcion}:`, processed._stock)
 
         // Validar y procesar presentación (por ID o nombre)
         if (row.fk_id_presentacion) {
@@ -214,15 +355,16 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
           }
         }
 
-        // Validar y procesar marca
-        if (row.fk_id_marca) {
-          const marcaId = Number(row.fk_id_marca)
-          if (!isNaN(marcaId) && marcasValidas.has(marcaId)) {
-            processed.fk_id_marca = marcaId
-            processed._marca_nombre = marcasMap.get(marcaId)
+        // Validar y procesar marca (por nombre)
+        if (processed._marca_nombre) {
+          const marcaEncontrada = marcas?.find(m => 
+            m.descripcion.toLowerCase() === processed._marca_nombre!.toLowerCase()
+          )
+          if (marcaEncontrada) {
+            processed.fk_id_marca = marcaEncontrada.id
           } else {
             processed._validation_errors = processed._validation_errors || []
-            processed._validation_errors.push(`Marca ID ${row.fk_id_marca} no es válida`)
+            processed._validation_errors.push(`Marca "${processed._marca_nombre}" no existe`)
           }
         }
 
@@ -231,6 +373,12 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
           const productId = Number(row.id)
           if (!isNaN(productId)) {
             processed.id = productId
+          }
+        } else {
+          // Verificar si existe un producto con la misma descripción
+          const existingProductId = productsByDescription.get(processed.descripcion.toLowerCase().trim())
+          if (existingProductId) {
+            processed.id = existingProductId
           }
         }
 
@@ -282,30 +430,61 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             imagen: product.imagen || null,
             activo: true // Por defecto activo
           }
+          
+          console.log(`Datos del producto a insertar:`, {
+            descripcion: productData.descripcion,
+            imagen: productData.imagen,
+            producto_imagen_original: product.imagen
+          })
 
           let productId: number
 
           if (product.id) {
-            // Actualizar producto existente
-            const { data, error } = await supabase
-              .from('productos')
-              .update(productData)
-              .eq('id', product.id)
-              .select('id')
-              .single()
-
-            if (error) throw error
-            productId = data.id
+            // Omitir producto existente con ID (no actualizar)
+            result.skipped++
+            continue
           } else {
-            // Crear nuevo producto
-            const { data, error } = await supabase
-              .from('productos')
-              .insert(productData)
-              .select('id')
-              .single()
+            // Verificar si ya existe un producto con la misma descripción
+            console.log(`Verificando si existe producto: ${product.descripcion}`)
+            
+            let existingProduct = null
+            try {
+              const { data, error: checkError } = await supabase
+                .from('productos')
+                .select('id')
+                .eq('descripcion', product.descripcion)
+                .single()
+              
+              if (!checkError) {
+                existingProduct = data
+              } else if (checkError.code !== 'PGRST116') {
+                console.warn(`Error al verificar producto existente:`, checkError)
+              }
+            } catch (error) {
+              console.warn(`Error en verificación de producto existente:`, error)
+            }
 
-            if (error) throw error
-            productId = data.id
+            if (existingProduct) {
+              // Omitir producto existente encontrado por descripción (no actualizar)
+              console.log(`Producto ya existe, omitiendo: ${product.descripcion}`)
+              result.skipped++
+              continue
+            } else {
+              // Crear nuevo producto
+              console.log(`Creando nuevo producto: ${product.descripcion}`)
+              const { data, error } = await supabase
+                .from('productos')
+                .insert(productData)
+                .select('id')
+                .single()
+
+              if (error) {
+                console.error(`Error al crear producto:`, error)
+                throw error
+              }
+              productId = data.id
+              console.log(`Producto creado con ID: ${productId}`)
+            }
           }
 
           // Si el producto tiene aplica_todos_plan = TRUE, crear las asociaciones
@@ -354,6 +533,142 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 console.warn(`Error al crear asociaciones para producto ${productId}:`, asociacionError)
               }
             }
+          }
+
+          // Crear registros de stock en stock_sucursales
+          console.log(`\n🏪 === CREANDO STOCK PARA PRODUCTO ${productId} ===`)
+          console.log(`📦 Stock data del producto:`, product._stock)
+          console.log(`🚀 CHECKPOINT: Llegamos hasta aquí!`)
+          
+          // Obtener zonas nuevamente aquí para asegurar que esté en scope
+          let zonasLocales = null
+          try {
+            const result = await supabase.from('zonas').select('id, nombre')
+            zonasLocales = result.data || []
+          } catch (error) {
+            console.error('Error obteniendo zonas:', error)
+            zonasLocales = [
+              { id: 1, nombre: 'Central' },
+              { id: 2, nombre: 'Cardales' },
+              { id: 3, nombre: 'Garin' },
+              { id: 4, nombre: 'Maschwitz' },
+              { id: 5, nombre: 'Capilla' },
+              { id: 6, nombre: 'Matheu' }
+            ]
+          }
+          
+          // Recrear el mapa de zonas
+          const zonasMapLocal = new Map(zonasLocales.map(z => {
+            const nombreLower = z.nombre.toLowerCase().trim()
+            return [nombreLower, z.id]
+          }))
+          
+          console.log(`🗺️ Zonas disponibles en BD:`, Array.from(zonasMapLocal.keys()))
+          
+          if (product._stock && Object.keys(product._stock).length > 0) {
+            const stockRegistros = []
+            
+            for (const [nombreZona, cantidad] of Object.entries(product._stock)) {
+              console.log(`\n🔍 Procesando zona: "${nombreZona}" con cantidad: ${cantidad}`)
+              const nombreZonaLower = nombreZona.toLowerCase().trim()
+              console.log(`🔍 Buscando zona como: "${nombreZonaLower}"`)
+              
+              const zonaId = zonasMapLocal.get(nombreZonaLower)
+              console.log(`🆔 ID de zona encontrado: ${zonaId}`)
+              
+              if (!zonaId) {
+                console.warn(`⚠️ No se encontró ID para la zona "${nombreZona}" (buscado como "${nombreZonaLower}")`)
+                console.log(`🔍 Zonas disponibles:`, Array.from(zonasMapLocal.keys()))
+                continue
+              }
+              
+              if (cantidad > 0) {
+                const registro = {
+                  fk_id_producto: productId,
+                  fk_id_zona: zonaId,
+                  stock: cantidad,
+                  stock_minimo: 0,
+                  activo: true
+                }
+                stockRegistros.push(registro)
+                console.log(`✅ Registro preparado:`, registro)
+              } else {
+                console.log(`⚠️ Cantidad es 0 o negativa, omitiendo: ${cantidad}`)
+              }
+            }
+            
+            console.log(`📝 Registros totales a crear:`, stockRegistros.length)
+            console.log(`📋 Datos completos a insertar:`, stockRegistros)
+            
+            if (stockRegistros.length > 0) {
+              console.log('💾 Intentando insertar en stock_sucursales:', stockRegistros)
+              
+              try {
+                // Intentar insertar cada registro individualmente para identificar cuál falla
+                const resultados = []
+                
+                for (let i = 0; i < stockRegistros.length; i++) {
+                  const registro = stockRegistros[i]
+                  console.log(`🔄 Insertando registro ${i + 1}/${stockRegistros.length}:`, registro)
+                  
+                  try {
+                    const { data: stockData, error: stockError } = await supabase
+                      .from('stock_sucursales')
+                      .insert([registro])
+                      .select()
+                    
+                    if (stockError) {
+                      console.error(`❌ Error en registro ${i + 1}:`, {
+                        registro,
+                        error: stockError,
+                        message: stockError.message,
+                        details: stockError.details,
+                        hint: stockError.hint,
+                        code: stockError.code
+                      })
+                      
+                      // Si es error 406, intentar con estructura alternativa
+                      if (stockError.code === '406' || stockError.message?.includes('406')) {
+                        console.log('🔧 Intentando estructura alternativa para error 406...')
+                        
+                        const registroAlt = {
+                          fk_id_producto: registro.fk_id_producto,
+                          fk_id_zona: registro.fk_id_zona,
+                          stock: registro.stock,
+                          stock_minimo: registro.stock_minimo || 0
+                        }
+                        
+                        const { data: stockDataAlt, error: stockErrorAlt } = await supabase
+                          .from('stock_sucursales')
+                          .insert([registroAlt])
+                          .select()
+                        
+                        if (stockErrorAlt) {
+                          console.error(`❌ También falló estructura alternativa:`, stockErrorAlt)
+                        } else {
+                          console.log(`✅ Éxito con estructura alternativa:`, stockDataAlt)
+                          resultados.push(stockDataAlt[0])
+                        }
+                      }
+                    } else {
+                      console.log(`✅ Registro ${i + 1} creado exitosamente:`, stockData)
+                      resultados.push(stockData[0])
+                    }
+                  } catch (insertError) {
+                    console.error(`💥 Exception al insertar registro ${i + 1}:`, insertError)
+                  }
+                }
+                
+                console.log(`📊 Resumen inserción: ${resultados.length}/${stockRegistros.length} registros creados`)
+                
+              } catch (error) {
+                console.error('💥 Error general al insertar stock:', error)
+              }
+            } else {
+              console.log(`⚠️ No hay registros de stock válidos para crear`)
+            }
+          } else {
+            console.log(`No hay datos de stock para el producto ${productId}`)
           }
 
           result.success++
@@ -405,27 +720,31 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 <div className="space-y-2">
                   <p><strong>Formato requerido del archivo Excel:</strong></p>
                   <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li><strong>descripcion</strong> (obligatorio): Nombre del producto</li>
-                    <li><strong>precio</strong> (obligatorio): Precio del producto</li>
-                    <li><strong>aplica_todos_plan</strong> (opcional): TRUE/FALSE - Si el producto se asocia a todos los planes</li>
-                    <li><strong>fk_id_presentacion</strong> (opcional): ID o nombre de la presentación (se detecta automáticamente)</li>
-                    <li><strong>presentacion_nombre</strong> (opcional): Nombre de la presentación (alternativa al campo anterior)</li>
-                    <li><strong>fk_id_linea</strong> (opcional): ID o nombre de la línea (se detecta automáticamente)</li>
-                    <li><strong>linea_nombre</strong> (opcional): Nombre de la línea (alternativa al campo anterior)</li>
-                    <li><strong>fk_id_tipo</strong> (opcional): ID o nombre del tipo (se detecta automáticamente)</li>
-                    <li><strong>tipo_nombre</strong> (opcional): Nombre del tipo (alternativa al campo anterior)</li>
-                    <li><strong>fk_id_marca</strong> (opcional): ID numérico de la marca (se valida que exista)</li>
+                    <li><strong>Descripción</strong> (obligatorio): Nombre del producto</li>
+                    <li><strong>Precio</strong> (obligatorio): Precio del producto</li>
+                    <li><strong>Presentacion</strong> (opcional): Nombre de la presentación</li>
+                    <li><strong>Línea</strong> (opcional): Nombre de la línea</li>
+                    <li><strong>Tipo</strong> (opcional): Nombre del tipo</li>
+                    <li><strong>Marca</strong> (opcional): Nombre de la marca</li>
+                    <li><strong>Central</strong> (opcional): Stock para sucursal Central (número)</li>
+                    <li><strong>Cardales</strong> (opcional): Stock para sucursal Cardales (número)</li>
+                    <li><strong>Matheu</strong> (opcional): Stock para sucursal Matheu (número)</li>
+                    <li><strong>Garin</strong> (opcional): Stock para sucursal Garin (número)</li>
+                    <li><strong>Maschwitz</strong> (opcional): Stock para sucursal Maschwitz (número)</li>
+                    <li><strong>Capilla</strong> (opcional): Stock para sucursal Capilla (número)</li>
                     <li><strong>imagen</strong> (opcional): URL de la imagen del producto</li>
-                    <li><strong>id</strong> (opcional): Si se incluye, actualiza el producto existente</li>
+                    <li><strong>aplica_todos_plan</strong> (opcional): TRUE/FALSE - Si el producto se asocia a todos los planes</li>
                   </ul>
                   <div className="space-y-2 text-sm">
                     <p className="font-medium text-blue-600">
                       <strong>Validaciones automáticas:</strong>
                     </p>
                     <ul className="list-disc list-inside text-xs space-y-1 text-blue-700">
-                      <li>Los campos de presentación, línea y tipo aceptan tanto IDs como nombres (se detecta automáticamente)</li>
-                      <li>Los IDs de marcas se verifican contra la base de datos</li>
-                      <li>Si un producto tiene <code>aplica_todos_plan = TRUE</code>, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas en <code>productos_planes_default</code></li>
+                      <li>Los nombres de presentación, línea, tipo y marca se validan contra la base de datos</li>
+                      <li>Los productos existentes (misma descripción) se omiten automáticamente</li>
+                      <li>Los valores de stock se crean como registros en <code>stock_sucursales</code> con stock_minimo = 0</li>
+                      <li>Solo se crean registros de stock para valores mayores a 0</li>
+                      <li>Si <code>aplica_todos_plan = TRUE</code>, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas</li>
                       <li>Los productos con errores de validación se mostrarán en rojo y no se procesarán</li>
                     </ul>
                   </div>
@@ -476,6 +795,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Marca</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Imagen</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Stock Sucursales</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                   </tr>
@@ -551,9 +871,39 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                         ) : '-'}
                       </td>
                       <td className="px-3 py-2 text-sm">
+                        {product.imagen ? (
+                          <div className="flex items-center space-x-2">
+                            <img 
+                              src={product.imagen} 
+                              alt="Vista previa" 
+                              className="w-8 h-8 object-cover rounded border"
+                              onError={(e) => {
+                                e.currentTarget.src = '/placeholder.jpg'
+                              }}
+                            />
+                            <div className="text-xs text-gray-500 max-w-20 truncate">
+                              {product.imagen}
+                            </div>
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm">
+                        {product._stock && Object.keys(product._stock).length > 0 ? (
+                          <div className="space-y-1">
+                            {Object.entries(product._stock).map(([zona, cantidad]) => (
+                              <div key={zona} className="text-xs">
+                                <span className="font-medium capitalize">{zona}:</span> {cantidad}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs">Sin stock</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-sm">
                         {product.id ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Actualizar
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Omitir
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
