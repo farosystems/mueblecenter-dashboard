@@ -233,6 +233,23 @@ export function ImageImporter({ onUpdateProducto, productos }: ImageImporterProp
         </DialogHeader>
         
         <div className="space-y-4">
+          {/* Información sobre los campos requeridos */}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-blue-800 mb-2">Campos requeridos para la importación:</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs text-blue-700">
+              <div><strong>ID</strong> - ID del producto (obligatorio)</div>
+              <div><strong>Descripción</strong> - Descripción del producto (obligatorio)</div>
+              <div><strong>imagen</strong> - URL de la imagen principal (opcional)</div>
+              <div><strong>imagen_2</strong> - URL de la segunda imagen (opcional)</div>
+              <div><strong>imagen_3</strong> - URL de la tercera imagen (opcional)</div>
+              <div><strong>imagen_4</strong> - URL de la cuarta imagen (opcional)</div>
+              <div><strong>imagen_5</strong> - URL de la quinta imagen (opcional)</div>
+            </div>
+            <div className="mt-3 text-xs text-blue-600">
+              <strong>Nota:</strong> El archivo debe ser XLSX o CSV. Los productos se identifican por su ID y deben existir en el sistema.
+            </div>
+          </div>
+
           {!results && (
             <>
               <div className="space-y-2">

@@ -17,7 +17,6 @@ interface PriceUpdaterProps {
 }
 
 interface ExcelRow {
-  'ID': number
   'Descripción': string
   'Precio': number
   'Categoría'?: string
@@ -69,17 +68,17 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
     }
 
     const firstRow = data[0]
-    const requiredColumns = ['ID', 'Descripción', 'Precio']
+    const requiredColumns = ['Descripción', 'Precio']
     
     for (const column of requiredColumns) {
       if (!(column in firstRow)) {
-        return `Falta la columna requerida: "${column}". Las columnas obligatorias son: ID, Descripción, Precio`
+        return `Falta la columna requerida: "${column}". Las columnas obligatorias son: Descripción, Precio`
       }
     }
 
     // Verificar que no haya columnas extrañas
     const allowedColumns = [
-      'ID', 'Descripción', 'Precio', 
+      'Descripción', 'Precio',
       'Categoría', 'Marca', 'Destacado', 'Descripción Detallada'
     ]
     
@@ -179,20 +178,19 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
   }
 
   const generatePreviewRow = (row: ExcelRow): PreviewRow => {
-    const productoId = row['ID']
     let newPrice = row['Precio']
     const descripcion = row['Descripción']
 
-    // Validar que el producto existe
-    const producto = productos.find(p => p.id === productoId)
+    // Validar que el producto existe por descripción
+    const producto = productos.find(p => p.descripcion === descripcion)
     if (!producto) {
       return {
-        productoId,
+        productoId: 0,
         descripcion,
         oldPrice: 0,
         newPrice: 0,
         isValid: false,
-        errorMessage: `Producto con ID ${productoId} no encontrado`
+        errorMessage: `Producto con descripción "${descripcion}" no encontrado`
       }
     }
 
@@ -206,7 +204,7 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
     // Validar que el precio es un número válido
     if (typeof newPrice !== 'number' || isNaN(newPrice) || newPrice <= 0) {
       return {
-        productoId,
+        productoId: producto.id,
         descripcion,
         oldPrice: producto.precio,
         newPrice: 0,
@@ -218,20 +216,8 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
     // Aplicar redondeo hacia arriba al múltiplo de 100 más cercano
     newPrice = Math.ceil(newPrice / 100) * 100
 
-    // Validar que la descripción coincide
-    if (producto.descripcion !== descripcion) {
-      return {
-        productoId,
-        descripcion,
-        oldPrice: producto.precio,
-        newPrice,
-        isValid: false,
-        errorMessage: `La descripción no coincide`
-      }
-    }
-
     return {
-      productoId,
+      productoId: producto.id,
       descripcion,
       oldPrice: producto.precio,
       newPrice,
@@ -241,17 +227,16 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
 
   const processRow = async (row: ExcelRow): Promise<UpdateResult> => {
     try {
-      const productoId = row['ID']
       let newPrice = row['Precio']
       const descripcion = row['Descripción']
 
-      // Validar que el producto existe
-      const producto = productos.find(p => p.id === productoId)
+      // Validar que el producto existe por descripción
+      const producto = productos.find(p => p.descripcion === descripcion)
       if (!producto) {
         return {
           success: false,
-          message: `Producto con ID ${productoId} no encontrado`,
-          productoId
+          message: `Producto con descripción "${descripcion}" no encontrado`,
+          productoId: 0
         }
       }
 
@@ -266,8 +251,8 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
       if (typeof newPrice !== 'number' || isNaN(newPrice) || newPrice <= 0) {
         return {
           success: false,
-          message: `Precio inválido para producto ${productoId}: ${row['Precio']}`,
-          productoId,
+          message: `Precio inválido para producto "${descripcion}": ${row['Precio']}`,
+          productoId: producto.id,
           oldPrice: producto.precio
         }
       }
@@ -275,23 +260,13 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
       // Aplicar redondeo hacia arriba al múltiplo de 100 más cercano
       newPrice = Math.ceil(newPrice / 100) * 100
 
-      // Validar que la descripción coincide
-      if (producto.descripcion !== descripcion) {
-        return {
-          success: false,
-          message: `La descripción no coincide para producto ${productoId}`,
-          productoId,
-          oldPrice: producto.precio
-        }
-      }
-
       // Actualizar el precio
-      await onUpdateProducto(productoId, { precio: newPrice })
+      await onUpdateProducto(producto.id, { precio: newPrice })
 
       return {
         success: true,
         message: `Precio actualizado: ${formatPrice(producto.precio)} → ${formatPrice(newPrice)}`,
-        productoId,
+        productoId: producto.id,
         oldPrice: producto.precio,
         newPrice
       }
@@ -299,8 +274,8 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
     } catch (error) {
       return {
         success: false,
-        message: `Error al procesar producto ${row['ID']}: ${error instanceof Error ? error.message : 'Error desconocido'}`,
-        productoId: row['ID']
+        message: `Error al procesar producto "${row['Descripción']}": ${error instanceof Error ? error.message : 'Error desconocido'}`,
+        productoId: 0
       }
     }
   }
@@ -440,7 +415,6 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
   const downloadTemplate = () => {
     // Crear datos de ejemplo para la plantilla
     const templateData = productos.slice(0, 3).map(producto => ({
-      'ID': producto.id,
       'Descripción': producto.descripcion,
       'Precio': producto.precio,
       'Categoría': producto.categoria?.descripcion || 'Sin categoría',
@@ -452,9 +426,9 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
     const workbook = XLSX.utils.book_new()
     const worksheet = XLSX.utils.json_to_sheet(templateData)
     
-    // Ajustar ancho de columnas (una columna menos)
+    // Ajustar ancho de columnas
     const columnWidths = [
-      { wch: 8 }, { wch: 40 }, { wch: 12 },
+      { wch: 40 }, { wch: 12 },
       { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 50 }
     ]
     worksheet['!cols'] = columnWidths
@@ -492,10 +466,10 @@ export function PriceUpdater({ productos, onUpdateProducto }: PriceUpdaterProps)
                      <Alert>
              <AlertCircle className="h-4 w-4" />
              <AlertDescription>
-               <strong>Columnas obligatorias:</strong> ID, Descripción, Precio<br/>
+               <strong>Columnas obligatorias:</strong> Descripción, Precio<br/>
                <strong>Importante:</strong> Usa la columna "Precio" (sin formato) para los nuevos valores, NO "Precio Formateado".<br/>
                <strong>Redondeo automático:</strong> Los precios se redondearán automáticamente hacia arriba al múltiplo de 100 más cercano.<br/>
-               Solo se actualizarán los precios de los productos que coincidan por ID y descripción.
+               Solo se actualizarán los precios de los productos que coincidan exactamente por descripción.
              </AlertDescription>
            </Alert>
 

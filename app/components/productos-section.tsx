@@ -16,7 +16,6 @@ import { ExcelGenerator } from "./excel-generator"
 import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
-import { JerarquiaMigrator } from "./jerarquia-migrator"
 import { DescripcionMigrator } from "./descripcion-migrator"
 import { Producto, Categoria, Marca, Presentacion, Linea, Tipo } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
@@ -760,13 +759,6 @@ export const ProductosSection = React.memo(({
           <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
               <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
           <ProductMigrator onMigrationComplete={() => {}} />
-          <JerarquiaMigrator 
-            productos={productos}
-            presentaciones={presentaciones}
-            lineas={lineas}
-            tipos={tipos}
-            onUpdateProducto={onUpdateProducto} 
-          />
           <DescripcionMigrator
             productos={productos}
             onUpdateProducto={onUpdateProducto}
