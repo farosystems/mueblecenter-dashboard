@@ -58,6 +58,7 @@ export interface Tipo {
 export interface Producto {
   id: number
   created_at: string
+  codigo?: string
   descripcion: string
   descripcion_detallada?: string
   precio: number

@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette, CheckSquare, Square, Trash } from "lucide-react"
+import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette, CheckSquare, Square, Trash, FileSpreadsheet, FileImage } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -17,6 +17,8 @@ import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
 import { DescripcionMigrator } from "./descripcion-migrator"
+import { CodigoMigrator } from "./codigo-migrator"
+import { ImageMigratorByCode } from "./image-migrator-by-code"
 import { Producto, Categoria, Marca, Presentacion, Linea, Tipo } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
 
@@ -60,9 +62,12 @@ export const ProductosSection = React.memo(({
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set())
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
+  const [isCodigoMigratorOpen, setIsCodigoMigratorOpen] = useState(false)
+  const [isImageMigratorByCodeOpen, setIsImageMigratorByCodeOpen] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const itemsPerPage = 15
   const [formData, setFormData] = useState({
+    codigo: "",
     descripcion: "",
     descripcion_detallada: "",
     precio: "",
@@ -87,13 +92,15 @@ export const ProductosSection = React.memo(({
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim()
       filtered = filtered.filter(producto => {
+        const codigo = producto.codigo?.toLowerCase() || ""
         const descripcion = producto.descripcion?.toLowerCase() || ""
         const descripcionDetallada = producto.descripcion_detallada?.toLowerCase() || ""
         const categoria = producto.categoria?.descripcion?.toLowerCase() || ""
         const marca = producto.marca?.descripcion?.toLowerCase() || ""
         const precio = producto.precio?.toString() || ""
-        
+
         return (
+          codigo.includes(term) ||
           descripcion.includes(term) ||
           descripcionDetallada.includes(term) ||
           categoria.includes(term) ||
@@ -305,6 +312,7 @@ export const ProductosSection = React.memo(({
 
   const resetForm = () => {
     setFormData({
+      codigo: "",
       descripcion: "",
       descripcion_detallada: "",
       precio: "",
@@ -336,6 +344,7 @@ export const ProductosSection = React.memo(({
     ].filter(Boolean) as string[];
 
     setFormData({
+      codigo: producto.codigo || "",
       descripcion: producto.descripcion || "",
       descripcion_detallada: producto.descripcion_detallada || "",
       precio: producto.precio?.toString() || "",
@@ -410,6 +419,7 @@ export const ProductosSection = React.memo(({
       }
 
           const productoData = {
+        codigo: formData.codigo.trim() !== '' ? formData.codigo : undefined,
         descripcion: formData.descripcion,
         descripcion_detallada: formData.descripcion_detallada || undefined,
         precio: parseFloat(formData.precio),
@@ -763,6 +773,53 @@ export const ProductosSection = React.memo(({
             productos={productos}
             onUpdateProducto={onUpdateProducto}
           />
+          <Button
+            onClick={() => setIsCodigoMigratorOpen(true)}
+            variant="outline"
+            className="mb-4"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Migrar Códigos desde Excel
+          </Button>
+
+          <Button
+            onClick={() => setIsImageMigratorByCodeOpen(true)}
+            variant="outline"
+            className="mb-4"
+          >
+            <FileImage className="w-4 h-4 mr-2" />
+            Migrar Imágenes por Código
+          </Button>
+
+          <Dialog open={isCodigoMigratorOpen} onOpenChange={setIsCodigoMigratorOpen}>
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Migrar Códigos desde Excel</DialogTitle>
+              </DialogHeader>
+              <CodigoMigrator
+                onComplete={() => {
+                  setIsCodigoMigratorOpen(false)
+                  // Opcional: refresh de los datos
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={isImageMigratorByCodeOpen} onOpenChange={setIsImageMigratorByCodeOpen}>
+            <DialogContent className="max-w-6xl max-h-[90vh]">
+              <DialogHeader>
+                <DialogTitle>Migrar Imágenes por Código</DialogTitle>
+              </DialogHeader>
+              <ImageMigratorByCode
+                productos={productos}
+                onUpdateProducto={onUpdateProducto}
+                onComplete={() => {
+                  setIsImageMigratorByCodeOpen(false)
+                  // Los datos se actualizarán automáticamente
+                }}
+              />
+            </DialogContent>
+          </Dialog>
                                               <Dialog open={isDialogOpen} onOpenChange={(open) => {
                     if (open) {
                       setIsDialogOpen(true)
@@ -802,7 +859,17 @@ export const ProductosSection = React.memo(({
                         </Button>
                       </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="codigo">Código (opcional)</Label>
+                  <Input
+                    id="codigo"
+                    value={formData.codigo}
+                    onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
+                    disabled={isCreating}
+                    placeholder="Código del producto"
+                  />
+                </div>
                 <div>
                   <Label htmlFor="descripcion">Descripción</Label>
                   <Input
@@ -1680,7 +1747,7 @@ export const ProductosSection = React.memo(({
                   </Button>
                 </TableHead>
               )}
-              <TableHead>ID</TableHead>
+              <TableHead>Código</TableHead>
               <TableHead>Descripción</TableHead>
               <TableHead>Desc. Det.</TableHead>
               <TableHead>Imágenes</TableHead>
@@ -1715,7 +1782,7 @@ export const ProductosSection = React.memo(({
                       </Button>
                     </TableCell>
                   )}
-                  <TableCell>{producto.id}</TableCell>
+                  <TableCell>{producto.codigo || '-'}</TableCell>
                   <TableCell className="font-medium">{producto.descripcion}</TableCell>
                   <TableCell>
                     {producto.descripcion_detallada ? (
