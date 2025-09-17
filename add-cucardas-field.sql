@@ -1,8 +1,7 @@
 -- Script para agregar el campo cucardas a la tabla productos
 -- Este campo almacenará la URL de la imagen de cucarda del producto
 
-ALTER TABLE public.productos 
-ADD COLUMN cucardas TEXT;
+2
 
 -- Agregar comentario al campo para documentación
 COMMENT ON COLUMN public.productos.cucardas IS 'URL de la imagen de cucarda del producto (opcional)';

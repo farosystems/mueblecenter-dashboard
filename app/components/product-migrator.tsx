@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx'
 
 interface ProductMigrationData {
   id?: number
+  codigo?: string
   descripcion: string
   precio: number
   aplica_todos_plan?: boolean
@@ -83,10 +84,10 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
       }
 
       // Validar que las columnas requeridas existen (nuevos nombres)
-      const requiredColumns = ['Descripción', 'Precio']
+      const requiredColumns = ['Artículo', 'Descripción', 'Precio']
       const firstRow = data[0]
       const missingColumns = requiredColumns.filter(col => !(col in firstRow) && !(col.toLowerCase() in firstRow))
-      
+
       if (missingColumns.length > 0) {
         alert(`El archivo Excel debe contener las siguientes columnas: ${missingColumns.join(', ')}`)
         return
@@ -177,13 +178,15 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         }
       })
 
-      // Obtener productos existentes para verificar duplicados por descripción
+      // Obtener productos existentes para verificar duplicados por código
       const { data: existingProducts } = await supabase
         .from('productos')
-        .select('id, descripcion')
-      
-      const productsByDescription = new Map(
-        existingProducts?.map(p => [p.descripcion.toLowerCase().trim(), p.id]) || []
+        .select('id, codigo, descripcion')
+
+      const productsByCodigo = new Map(
+        existingProducts
+          ?.filter(p => p.codigo) // Solo productos que tienen código
+          ?.map(p => [p.codigo.toLowerCase().trim(), p.id]) || []
       )
 
       // Mostrar todas las columnas disponibles en el Excel
@@ -205,17 +208,18 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         }
 
         const processed: ProductMigrationData = {
+          codigo: String(getValue(['Artículo', 'articulo', 'código', 'codigo']) || '').trim(),
           descripcion: String(getValue(['Descripción', 'descripcion', 'descripción']) || '').trim(),
           precio: Number(getValue(['Precio', 'precio']) || 0),
           aplica_todos_plan: Boolean(row.aplica_todos_plan),
           imagen: row.imagen ? String(row.imagen).trim() : undefined,
-          presentacion_nombre: getValue(['Presentacion', 'presentacion', 'presentación']) ? 
+          presentacion_nombre: getValue(['Presentacion', 'presentacion', 'presentación']) ?
             String(getValue(['Presentacion', 'presentacion', 'presentación'])).trim() : undefined,
-          linea_nombre: getValue(['Línea', 'linea', 'Linea']) ? 
+          linea_nombre: getValue(['Línea', 'linea', 'Linea']) ?
             String(getValue(['Línea', 'linea', 'Linea'])).trim() : undefined,
-          tipo_nombre: getValue(['Tipo', 'tipo']) ? 
+          tipo_nombre: getValue(['Tipo', 'tipo']) ?
             String(getValue(['Tipo', 'tipo'])).trim() : undefined,
-          _marca_nombre: getValue(['Marca', 'marca']) ? 
+          _marca_nombre: getValue(['Marca', 'marca']) ?
             String(getValue(['Marca', 'marca'])).trim() : undefined,
         }
 
@@ -375,10 +379,12 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             processed.id = productId
           }
         } else {
-          // Verificar si existe un producto con la misma descripción
-          const existingProductId = productsByDescription.get(processed.descripcion.toLowerCase().trim())
-          if (existingProductId) {
-            processed.id = existingProductId
+          // Verificar si existe un producto con el mismo código
+          if (processed.codigo) {
+            const existingProductId = productsByCodigo.get(processed.codigo.toLowerCase().trim())
+            if (existingProductId) {
+              processed.id = existingProductId
+            }
           }
         }
 
@@ -420,6 +426,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
 
           // Insertar o actualizar el producto
           let productData: any = {
+            codigo: product.codigo || null,
             descripcion: product.descripcion,
             precio: product.precio,
             aplica_todos_plan: product.aplica_todos_plan || false,
@@ -444,34 +451,36 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             result.skipped++
             continue
           } else {
-            // Verificar si ya existe un producto con la misma descripción
-            console.log(`Verificando si existe producto: ${product.descripcion}`)
-            
+            // Verificar si ya existe un producto con el mismo código
+            console.log(`Verificando si existe producto con código: ${product.codigo}`)
+
             let existingProduct = null
-            try {
-              const { data, error: checkError } = await supabase
-                .from('productos')
-                .select('id')
-                .eq('descripcion', product.descripcion)
-                .single()
-              
-              if (!checkError) {
-                existingProduct = data
-              } else if (checkError.code !== 'PGRST116') {
-                console.warn(`Error al verificar producto existente:`, checkError)
+            if (product.codigo) {
+              try {
+                const { data, error: checkError } = await supabase
+                  .from('productos')
+                  .select('id')
+                  .eq('codigo', product.codigo)
+                  .single()
+
+                if (!checkError) {
+                  existingProduct = data
+                } else if (checkError.code !== 'PGRST116') {
+                  console.warn(`Error al verificar producto existente:`, checkError)
+                }
+              } catch (error) {
+                console.warn(`Error en verificación de producto existente:`, error)
               }
-            } catch (error) {
-              console.warn(`Error en verificación de producto existente:`, error)
             }
 
             if (existingProduct) {
-              // Omitir producto existente encontrado por descripción (no actualizar)
-              console.log(`Producto ya existe, omitiendo: ${product.descripcion}`)
+              // Omitir producto existente encontrado por código (no actualizar)
+              console.log(`Producto ya existe, omitiendo: ${product.codigo}`)
               result.skipped++
               continue
             } else {
               // Crear nuevo producto
-              console.log(`Creando nuevo producto: ${product.descripcion}`)
+              console.log(`Creando nuevo producto: ${product.codigo} - ${product.descripcion}`)
               const { data, error } = await supabase
                 .from('productos')
                 .insert(productData)
@@ -720,6 +729,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 <div className="space-y-2">
                   <p><strong>Formato requerido del archivo Excel:</strong></p>
                   <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li><strong>Artículo</strong> (obligatorio): Código único del producto</li>
                     <li><strong>Descripción</strong> (obligatorio): Nombre del producto</li>
                     <li><strong>Precio</strong> (obligatorio): Precio del producto</li>
                     <li><strong>Presentacion</strong> (opcional): Nombre de la presentación</li>
@@ -741,7 +751,8 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     </p>
                     <ul className="list-disc list-inside text-xs space-y-1 text-blue-700">
                       <li>Los nombres de presentación, línea, tipo y marca se validan contra la base de datos</li>
-                      <li>Los productos existentes (misma descripción) se omiten automáticamente</li>
+                      <li>Los productos existentes (mismo código) se omiten automáticamente</li>
+                      <li>Si no existe un producto con ese código, se crea uno nuevo con el código asignado</li>
                       <li>Los valores de stock se crean como registros en <code>stock_sucursales</code> con stock_minimo = 0</li>
                       <li>Solo se crean registros de stock para valores mayores a 0</li>
                       <li>Si <code>aplica_todos_plan = TRUE</code>, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas</li>
@@ -787,6 +798,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
                     <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Todos los Planes</th>
@@ -803,6 +815,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {previewData.slice(0, 50).map((product, index) => (
                     <tr key={index} className={`hover:bg-gray-50 ${product._validation_errors?.length ? 'bg-red-25' : ''}`}>
+                      <td className="px-3 py-2 text-sm text-gray-900 font-medium">{product.codigo || '-'}</td>
                       <td className="px-3 py-2 text-sm text-gray-900">{product.descripcion}</td>
                       <td className="px-3 py-2 text-sm text-gray-900">
                         {new Intl.NumberFormat("es-AR", {
@@ -933,7 +946,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                   ))}
                   {previewData.length > 50 && (
                     <tr>
-                      <td colSpan={10} className="px-3 py-2 text-sm text-gray-500 text-center">
+                      <td colSpan={12} className="px-3 py-2 text-sm text-gray-500 text-center">
                         ... y {previewData.length - 50} productos más
                       </td>
                     </tr>

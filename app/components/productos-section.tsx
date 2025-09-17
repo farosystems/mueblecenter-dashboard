@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
-import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette, CheckSquare, Square, Trash, FileSpreadsheet, FileImage } from "lucide-react"
+import { Plus, Edit, Trash2, Grid, List, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, X, Bold, Italic, Underline, Type, Palette, CheckSquare, Square, Trash, FileImage } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -12,12 +12,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ImageUpload } from "./image-upload"
-import { ExcelGenerator } from "./excel-generator"
 import { PriceUpdater } from "./price-updater"
 import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
 import { DescripcionMigrator } from "./descripcion-migrator"
-import { CodigoMigrator } from "./codigo-migrator"
 import { ImageMigratorByCode } from "./image-migrator-by-code"
 import { Producto, Categoria, Marca, Presentacion, Linea, Tipo } from "@/lib/supabase"
 import { supabase } from "@/lib/supabase"
@@ -62,7 +60,6 @@ export const ProductosSection = React.memo(({
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set())
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
-  const [isCodigoMigratorOpen, setIsCodigoMigratorOpen] = useState(false)
   const [isImageMigratorByCodeOpen, setIsImageMigratorByCodeOpen] = useState(false)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
   const itemsPerPage = 15
@@ -765,7 +762,6 @@ export const ProductosSection = React.memo(({
               <Grid className="h-4 w-4" />
             </Button>
           </div>
-          <ExcelGenerator productos={productos} />
           <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
               <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
           <ProductMigrator onMigrationComplete={() => {}} />
@@ -773,14 +769,6 @@ export const ProductosSection = React.memo(({
             productos={productos}
             onUpdateProducto={onUpdateProducto}
           />
-          <Button
-            onClick={() => setIsCodigoMigratorOpen(true)}
-            variant="outline"
-            className="mb-4"
-          >
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            Migrar Códigos desde Excel
-          </Button>
 
           <Button
             onClick={() => setIsImageMigratorByCodeOpen(true)}
@@ -790,20 +778,6 @@ export const ProductosSection = React.memo(({
             <FileImage className="w-4 h-4 mr-2" />
             Migrar Imágenes por Código
           </Button>
-
-          <Dialog open={isCodigoMigratorOpen} onOpenChange={setIsCodigoMigratorOpen}>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Migrar Códigos desde Excel</DialogTitle>
-              </DialogHeader>
-              <CodigoMigrator
-                onComplete={() => {
-                  setIsCodigoMigratorOpen(false)
-                  // Opcional: refresh de los datos
-                }}
-              />
-            </DialogContent>
-          </Dialog>
 
           <Dialog open={isImageMigratorByCodeOpen} onOpenChange={setIsImageMigratorByCodeOpen}>
             <DialogContent className="max-w-6xl max-h-[90vh]">
