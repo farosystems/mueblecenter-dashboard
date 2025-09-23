@@ -26,9 +26,10 @@ export function useSupabaseData() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar productos
-  const loadProductos = async () => {
+  // Cargar productos iniciales (solo primeros 100 para carga rápida)
+  const loadProductos = async (limit: number = 100) => {
     try {
+      console.log(`🚀 Carga rápida: primeros ${limit} productos`)
       const { data, error } = await supabase
         .from('productos')
         .select(`
@@ -40,12 +41,63 @@ export function useSupabaseData() {
           tipo:tipo_id(*)
         `)
         .order('created_at', { ascending: false })
+        .limit(limit)
 
       if (error) throw error
+      console.log(`✅ Productos cargados: ${data?.length || 0}`)
       setProductos(data || [])
     } catch (err) {
       setError('Error al cargar productos')
       console.error('Error loading productos:', err)
+    }
+  }
+
+  // Cargar TODOS los productos cuando sea necesario (para búsquedas globales)
+  const loadAllProductos = async () => {
+    try {
+      let allData: any[] = []
+      let from = 0
+      const batchSize = 1000
+      let hasMore = true
+
+      console.log('🔄 Cargando TODOS los productos...')
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('productos')
+          .select(`
+            *,
+            categoria:fk_id_categoria(*),
+            marca:fk_id_marca(*),
+            presentacion:presentacion_id(*),
+            linea:linea_id(*),
+            tipo:tipo_id(*)
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, from + batchSize - 1)
+
+        if (error) throw error
+
+        if (data && data.length > 0) {
+          allData = [...allData, ...data]
+          from += batchSize
+          console.log(`📦 Lote cargado: ${data.length} productos (Total: ${allData.length})`)
+
+          if (data.length < batchSize) {
+            hasMore = false
+          }
+        } else {
+          hasMore = false
+        }
+      }
+
+      console.log(`✅ TODOS los productos cargados: ${allData.length}`)
+      setProductos(allData)
+      return allData
+    } catch (err) {
+      setError('Error al cargar todos los productos')
+      console.error('Error loading all productos:', err)
+      return []
     }
   }
 
@@ -85,7 +137,7 @@ export function useSupabaseData() {
     }
   }
 
-  // Cargar productos por plan
+  // Cargar productos por plan (carga ligera inicial)
   const loadProductosPorPlan = async () => {
     try {
       const { data, error } = await supabase
@@ -96,6 +148,7 @@ export function useSupabaseData() {
           plan:fk_id_plan(*)
         `)
         .order('created_at', { ascending: false })
+        .limit(500) // Limitar carga inicial
 
       if (error) throw error
       setProductosPorPlan(data || [])
@@ -105,7 +158,7 @@ export function useSupabaseData() {
     }
   }
 
-  // Cargar productos por plan por defecto
+  // Cargar productos por plan por defecto (carga ligera inicial)
   const loadProductosPorPlanDefault = async () => {
     try {
       const { data, error } = await supabase
@@ -116,6 +169,7 @@ export function useSupabaseData() {
           plan:fk_id_plan(*)
         `)
         .order('created_at', { ascending: false })
+        .limit(500) // Limitar carga inicial
 
       if (error) throw error
       setProductosPorPlanDefault(data || [])
@@ -1529,6 +1583,7 @@ export function useSupabaseData() {
     updateConfiguracion,
     configuracionWeb,
     updateConfiguracionWeb,
+    loadAllProductos, // Nueva función para cargar todos los productos
     refreshData: () => {
       setLoading(true)
       Promise.all([

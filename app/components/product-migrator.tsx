@@ -424,7 +424,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             continue
           }
 
-          // Insertar o actualizar el producto
+          // Preparar datos base del producto
           let productData: any = {
             codigo: product.codigo || null,
             descripcion: product.descripcion,
@@ -434,8 +434,12 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             linea_id: product.fk_id_linea || null,
             tipo_id: product.fk_id_tipo || null,
             fk_id_marca: product.fk_id_marca || null,
-            imagen: product.imagen || null,
             activo: true // Por defecto activo
+          }
+
+          // Solo incluir imagen para productos nuevos si viene en el Excel
+          if (product.imagen && product.imagen.trim() !== '') {
+            productData.imagen = product.imagen
           }
           
           console.log(`Datos del producto a insertar:`, {
@@ -446,58 +450,129 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
 
           let productId: number
 
+          let existingProduct = null
+
           if (product.id) {
-            // Omitir producto existente con ID (no actualizar)
-            result.skipped++
-            continue
-          } else {
-            // Verificar si ya existe un producto con el mismo código
+            // Si viene con ID, usar ese ID
+            existingProduct = { id: product.id }
+            productId = product.id
+          } else if (product.codigo) {
+            // Buscar producto existente por código
             console.log(`Verificando si existe producto con código: ${product.codigo}`)
-
-            let existingProduct = null
-            if (product.codigo) {
-              try {
-                const { data, error: checkError } = await supabase
-                  .from('productos')
-                  .select('id')
-                  .eq('codigo', product.codigo)
-                  .single()
-
-                if (!checkError) {
-                  existingProduct = data
-                } else if (checkError.code !== 'PGRST116') {
-                  console.warn(`Error al verificar producto existente:`, checkError)
-                }
-              } catch (error) {
-                console.warn(`Error en verificación de producto existente:`, error)
-              }
-            }
-
-            if (existingProduct) {
-              // Omitir producto existente encontrado por código (no actualizar)
-              console.log(`Producto ya existe, omitiendo: ${product.codigo}`)
-              result.skipped++
-              continue
-            } else {
-              // Crear nuevo producto
-              console.log(`Creando nuevo producto: ${product.codigo} - ${product.descripcion}`)
-              const { data, error } = await supabase
+            try {
+              const { data, error: checkError } = await supabase
                 .from('productos')
-                .insert(productData)
-                .select('id')
+                .select('id, precio, aplica_todos_plan')
+                .eq('codigo', product.codigo)
                 .single()
 
-              if (error) {
-                console.error(`Error al crear producto:`, error)
-                throw error
+              if (!checkError) {
+                existingProduct = data
+                productId = data.id
+              } else if (checkError.code !== 'PGRST116') {
+                console.warn(`Error al verificar producto existente:`, checkError)
               }
-              productId = data.id
-              console.log(`Producto creado con ID: ${productId}`)
+            } catch (error) {
+              console.warn(`Error en verificación de producto existente:`, error)
             }
           }
 
-          // Si el producto tiene aplica_todos_plan = TRUE, crear las asociaciones
-          if (product.aplica_todos_plan) {
+          if (existingProduct) {
+            // Actualizar producto existente
+            console.log(`Actualizando producto existente: ${product.codigo} - ${product.descripcion}`)
+
+            // Preparar datos para actualización
+            const updateData: any = {}
+            let needsUpdate = false
+
+            // Actualizar precio si es diferente
+            if (product.precio !== existingProduct.precio) {
+              updateData.precio = product.precio
+              needsUpdate = true
+              console.log(`Actualizando precio de ${existingProduct.precio} a ${product.precio}`)
+            }
+
+            // Actualizar aplica_todos_plan si es diferente
+            if (product.aplica_todos_plan !== existingProduct.aplica_todos_plan) {
+              updateData.aplica_todos_plan = product.aplica_todos_plan
+              needsUpdate = true
+              console.log(`Actualizando aplica_todos_plan de ${existingProduct.aplica_todos_plan} a ${product.aplica_todos_plan}`)
+            }
+
+            // Actualizar otros campos si están presentes
+            if (product.descripcion && product.descripcion.trim()) {
+              updateData.descripcion = product.descripcion
+              needsUpdate = true
+            }
+
+            if (product.fk_id_presentacion) {
+              updateData.presentacion_id = product.fk_id_presentacion
+              needsUpdate = true
+            }
+
+            if (product.fk_id_linea) {
+              updateData.linea_id = product.fk_id_linea
+              needsUpdate = true
+            }
+
+            if (product.fk_id_tipo) {
+              updateData.tipo_id = product.fk_id_tipo
+              needsUpdate = true
+            }
+
+            if (product.fk_id_marca) {
+              updateData.fk_id_marca = product.fk_id_marca
+              needsUpdate = true
+            }
+
+            // Solo actualizar imagen si viene una nueva en el Excel
+            if (product.imagen && product.imagen.trim() !== '') {
+              updateData.imagen = product.imagen
+              needsUpdate = true
+              console.log(`Actualizando imagen a: ${product.imagen}`)
+            }
+
+            // Solo actualizar si hay cambios
+            if (needsUpdate) {
+              const { error: updateError } = await supabase
+                .from('productos')
+                .update(updateData)
+                .eq('id', productId)
+
+              if (updateError) {
+                console.error(`Error al actualizar producto:`, updateError)
+                throw updateError
+              }
+              console.log(`Producto actualizado con ID: ${productId}`)
+            } else {
+              console.log(`Producto sin cambios, omitiendo actualización: ${productId}`)
+            }
+
+          } else {
+            // Crear nuevo producto
+            console.log(`Creando nuevo producto: ${product.codigo} - ${product.descripcion}`)
+            const { data, error } = await supabase
+              .from('productos')
+              .insert(productData)
+              .select('id')
+              .single()
+
+            if (error) {
+              console.error(`Error al crear producto:`, error)
+              throw error
+            }
+            productId = data.id
+            console.log(`Producto creado con ID: ${productId}`)
+          }
+
+          // Manejar asociaciones con planes solo cuando sea necesario
+          const shouldCreatePlanAssociations = existingProduct
+            ? (product.aplica_todos_plan && !existingProduct.aplica_todos_plan) // Cambió de false a true
+            : product.aplica_todos_plan // Producto nuevo con aplica_todos_plan = true
+
+          if (shouldCreatePlanAssociations) {
+            console.log(`Creando asociaciones de planes para producto ${productId} (aplica_todos_plan cambió a true o es producto nuevo)`)
+
             // Primero eliminar asociaciones existentes para este producto
             await supabase
               .from('producto_planes_default')
@@ -540,8 +615,17 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
 
               if (asociacionError) {
                 console.warn(`Error al crear asociaciones para producto ${productId}:`, asociacionError)
+              } else {
+                console.log(`Creadas ${asociaciones.length} asociaciones de planes para producto ${productId}`)
               }
             }
+          } else if (existingProduct && !product.aplica_todos_plan && existingProduct.aplica_todos_plan) {
+            // Si cambió de true a false, eliminar asociaciones
+            console.log(`Eliminando asociaciones de planes para producto ${productId} (aplica_todos_plan cambió a false)`)
+            await supabase
+              .from('producto_planes_default')
+              .delete()
+              .eq('fk_id_producto', productId)
           }
 
           // Crear registros de stock en stock_sucursales
@@ -751,11 +835,13 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     </p>
                     <ul className="list-disc list-inside text-xs space-y-1 text-blue-700">
                       <li>Los nombres de presentación, línea, tipo y marca se validan contra la base de datos</li>
-                      <li>Los productos existentes (mismo código) se omiten automáticamente</li>
+                      <li><strong>Los productos existentes (mismo código) se actualizarán</strong> con los nuevos datos del Excel</li>
+                      <li>Se actualizarán: precio, descripción, presentación, línea, tipo, marca, imagen y aplica_todos_plan</li>
                       <li>Si no existe un producto con ese código, se crea uno nuevo con el código asignado</li>
                       <li>Los valores de stock se crean como registros en <code>stock_sucursales</code> con stock_minimo = 0</li>
                       <li>Solo se crean registros de stock para valores mayores a 0</li>
-                      <li>Si <code>aplica_todos_plan = TRUE</code>, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas</li>
+                      <li>Si <code>aplica_todos_plan</code> cambia de FALSE a TRUE, se crean automáticamente las relaciones con todos los planes activos sin categorías específicas</li>
+                      <li>Si <code>aplica_todos_plan</code> cambia de TRUE a FALSE, se eliminan las relaciones con planes</li>
                       <li>Los productos con errores de validación se mostrarán en rojo y no se procesarán</li>
                     </ul>
                   </div>
@@ -915,8 +1001,8 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                       </td>
                       <td className="px-3 py-2 text-sm">
                         {product.id ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                            Omitir
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Actualizar
                           </span>
                         ) : (
                           <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">

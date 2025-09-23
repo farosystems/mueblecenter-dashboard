@@ -12,8 +12,6 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ImageUpload } from "./image-upload"
-import { PriceUpdater } from "./price-updater"
-import { ImageImporter } from "./image-importer"
 import { ProductMigrator } from "./product-migrator"
 import { DescripcionMigrator } from "./descripcion-migrator"
 import { ImageMigratorByCode } from "./image-migrator-by-code"
@@ -30,6 +28,7 @@ interface ProductosSectionProps {
   onCreateProducto: (producto: Omit<Producto, 'id' | 'created_at' | 'categoria' | 'marca'>) => Promise<Producto | undefined>
   onUpdateProducto: (id: number, producto: Partial<Producto>) => Promise<Producto | undefined>
   onDeleteProducto: (id: number) => Promise<void>
+  loadAllProductos?: () => Promise<any[]>
 }
 
 export const ProductosSection = React.memo(({
@@ -41,7 +40,8 @@ export const ProductosSection = React.memo(({
   tipos,
   onCreateProducto,
   onUpdateProducto,
-  onDeleteProducto
+  onDeleteProducto,
+  loadAllProductos
 }: ProductosSectionProps) => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -61,8 +61,8 @@ export const ProductosSection = React.memo(({
   const [selectedProducts, setSelectedProducts] = useState<Set<number>>(new Set())
   const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
   const [isImageMigratorByCodeOpen, setIsImageMigratorByCodeOpen] = useState(false)
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15)
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const itemsPerPage = 15
   const [formData, setFormData] = useState({
     codigo: "",
     descripcion: "",
@@ -144,9 +144,9 @@ export const ProductosSection = React.memo(({
   }, [productos, searchTerm, filterPresentacion, filterLinea, filterTipo, filterDestacado, filterEstado])
 
   // Funciones de paginación
-  const totalPages = Math.ceil(filteredProductos.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
+  const totalPages = itemsPerPage === 'all' ? 1 : Math.ceil(filteredProductos.length / itemsPerPage)
+  const startIndex = itemsPerPage === 'all' ? 0 : (currentPage - 1) * itemsPerPage
+  const endIndex = itemsPerPage === 'all' ? filteredProductos.length : startIndex + itemsPerPage
   const currentProductos = filteredProductos.slice(startIndex, endIndex)
 
   const handlePageChange = (page: number) => {
@@ -154,10 +154,10 @@ export const ProductosSection = React.memo(({
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // Resetear página cuando cambie la vista, el número de productos, el término de búsqueda o los filtros
+  // Resetear página cuando cambie la vista, el número de productos, el término de búsqueda, los filtros o items por página
   useEffect(() => {
     setCurrentPage(1)
-  }, [viewMode, filteredProductos.length, searchTerm, filterPresentacion, filterLinea, filterTipo, filterDestacado, filterEstado])
+  }, [viewMode, filteredProductos.length, searchTerm, filterPresentacion, filterLinea, filterTipo, filterDestacado, filterEstado, itemsPerPage])
 
   // Limpiar timer al desmontar
   useEffect(() => {
@@ -170,7 +170,7 @@ export const ProductosSection = React.memo(({
 
   // Componente de paginación
   const Pagination = () => {
-    if (totalPages <= 1) return null
+    if (totalPages <= 1 || itemsPerPage === 'all') return null
 
     const getPageNumbers = () => {
       const pages = []
@@ -209,11 +209,45 @@ export const ProductosSection = React.memo(({
 
     return (
       <div className="flex items-center justify-between px-2 py-4">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-4">
           <p className="text-sm text-gray-700">
-            Mostrando {startIndex + 1} a {Math.min(endIndex, filteredProductos.length)} de {filteredProductos.length} productos
-            {searchTerm && ` (filtrados de ${productos.length} total)`}
+            {itemsPerPage === 'all'
+              ? `Mostrando todos los ${filteredProductos.length} productos${searchTerm ? ` (filtrados de ${productos.length} total)` : ''}`
+              : `Mostrando ${startIndex + 1} a ${Math.min(endIndex, filteredProductos.length)} de ${filteredProductos.length} productos${searchTerm ? ` (filtrados de ${productos.length} total)` : ''}`
+            }
           </p>
+
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600">Mostrar:</span>
+            <Select
+              value={itemsPerPage.toString()}
+              onValueChange={(value) => setItemsPerPage(value === 'all' ? 'all' : parseInt(value))}
+            >
+              <SelectTrigger className="w-20 h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15</SelectItem>
+                <SelectItem value="30">30</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {loadAllProductos && productos.length < 1000 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  await loadAllProductos()
+                }}
+                className="h-8 text-xs"
+              >
+                🔄 Cargar Todos
+              </Button>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center space-x-1">
@@ -762,8 +796,6 @@ export const ProductosSection = React.memo(({
               <Grid className="h-4 w-4" />
             </Button>
           </div>
-          <PriceUpdater productos={productos} onUpdateProducto={onUpdateProducto} />
-              <ImageImporter productos={productos} onUpdateProducto={onUpdateProducto} />
           <ProductMigrator onMigrationComplete={() => {}} />
           <DescripcionMigrator
             productos={productos}

@@ -96,6 +96,7 @@ function Dashboard() {
     getCategoriasDePlan,
     updateConfiguracion,
     updateConfiguracionWeb,
+    loadAllProductos,
     refreshData
   } = useSupabaseData()
 
@@ -202,8 +203,8 @@ function Dashboard() {
     switch (activeSection) {
       case "productos":
         return (
-          <ProductosSection 
-            productos={productos} 
+          <ProductosSection
+            productos={productos}
             categorias={categorias}
             marcas={marcas}
             presentaciones={presentaciones}
@@ -212,6 +213,7 @@ function Dashboard() {
             onCreateProducto={createProducto}
             onUpdateProducto={updateProducto}
             onDeleteProducto={deleteProducto}
+            loadAllProductos={loadAllProductos}
           />
         )
       case "presentaciones":
