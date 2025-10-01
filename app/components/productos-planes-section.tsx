@@ -323,13 +323,17 @@ export const ProductosPlanesSection = React.memo(({
                     </TableCell>
                     <TableCell>{plan?.nombre || `Plan ${item.fk_id_plan}`}</TableCell>
                     <TableCell>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${
-                          item.activo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {item.activo ? "Activo" : "Inactivo"}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          checked={item.activo}
+                          onCheckedChange={async (checked) => {
+                            await onUpdateProductoPlanDefault(item.id, { activo: checked })
+                          }}
+                        />
+                        <span className="text-xs text-gray-600">
+                          {item.activo ? "Activo" : "Inactivo"}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {new Date(item.created_at).toLocaleDateString('es-AR')}

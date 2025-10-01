@@ -694,71 +694,80 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             console.log(`📋 Datos completos a insertar:`, stockRegistros)
             
             if (stockRegistros.length > 0) {
-              console.log('💾 Intentando insertar en stock_sucursales:', stockRegistros)
-              
+              console.log('💾 Procesando registros de stock_sucursales:', stockRegistros)
+
               try {
-                // Intentar insertar cada registro individualmente para identificar cuál falla
+                // Procesar cada registro individualmente con lógica de upsert
                 const resultados = []
-                
+
                 for (let i = 0; i < stockRegistros.length; i++) {
                   const registro = stockRegistros[i]
-                  console.log(`🔄 Insertando registro ${i + 1}/${stockRegistros.length}:`, registro)
-                  
+                  console.log(`🔄 Procesando registro ${i + 1}/${stockRegistros.length}:`, registro)
+
                   try {
-                    const { data: stockData, error: stockError } = await supabase
+                    // Verificar si ya existe un registro para este producto y zona
+                    const { data: existingStock, error: checkError } = await supabase
                       .from('stock_sucursales')
-                      .insert([registro])
-                      .select()
-                    
-                    if (stockError) {
-                      console.error(`❌ Error en registro ${i + 1}:`, {
-                        registro,
-                        error: stockError,
-                        message: stockError.message,
-                        details: stockError.details,
-                        hint: stockError.hint,
-                        code: stockError.code
-                      })
-                      
-                      // Si es error 406, intentar con estructura alternativa
-                      if (stockError.code === '406' || stockError.message?.includes('406')) {
-                        console.log('🔧 Intentando estructura alternativa para error 406...')
-                        
-                        const registroAlt = {
-                          fk_id_producto: registro.fk_id_producto,
-                          fk_id_zona: registro.fk_id_zona,
+                      .select('id, stock')
+                      .eq('fk_id_producto', registro.fk_id_producto)
+                      .eq('fk_id_zona', registro.fk_id_zona)
+                      .maybeSingle()
+
+                    if (checkError) {
+                      console.error(`❌ Error al verificar stock existente:`, checkError)
+                      continue
+                    }
+
+                    if (existingStock) {
+                      // ACTUALIZAR registro existente
+                      console.log(`♻️ Actualizando registro existente (ID: ${existingStock.id}) de stock ${existingStock.stock} a ${registro.stock}`)
+
+                      const { data: stockData, error: stockError } = await supabase
+                        .from('stock_sucursales')
+                        .update({
                           stock: registro.stock,
-                          stock_minimo: registro.stock_minimo || 0
-                        }
-                        
-                        const { data: stockDataAlt, error: stockErrorAlt } = await supabase
-                          .from('stock_sucursales')
-                          .insert([registroAlt])
-                          .select()
-                        
-                        if (stockErrorAlt) {
-                          console.error(`❌ También falló estructura alternativa:`, stockErrorAlt)
-                        } else {
-                          console.log(`✅ Éxito con estructura alternativa:`, stockDataAlt)
-                          resultados.push(stockDataAlt[0])
-                        }
+                          stock_minimo: registro.stock_minimo,
+                          activo: registro.activo
+                        })
+                        .eq('id', existingStock.id)
+                        .select()
+
+                      if (stockError) {
+                        console.error(`❌ Error al actualizar registro:`, stockError)
+                      } else {
+                        console.log(`✅ Registro actualizado exitosamente:`, stockData)
+                        resultados.push({ action: 'updated', data: stockData[0] })
                       }
                     } else {
-                      console.log(`✅ Registro ${i + 1} creado exitosamente:`, stockData)
-                      resultados.push(stockData[0])
+                      // CREAR nuevo registro
+                      console.log(`➕ Creando nuevo registro de stock`)
+
+                      const { data: stockData, error: stockError } = await supabase
+                        .from('stock_sucursales')
+                        .insert([registro])
+                        .select()
+
+                      if (stockError) {
+                        console.error(`❌ Error al crear registro:`, stockError)
+                      } else {
+                        console.log(`✅ Registro creado exitosamente:`, stockData)
+                        resultados.push({ action: 'created', data: stockData[0] })
+                      }
                     }
                   } catch (insertError) {
-                    console.error(`💥 Exception al insertar registro ${i + 1}:`, insertError)
+                    console.error(`💥 Exception al procesar registro ${i + 1}:`, insertError)
                   }
                 }
-                
-                console.log(`📊 Resumen inserción: ${resultados.length}/${stockRegistros.length} registros creados`)
-                
+
+                const created = resultados.filter(r => r.action === 'created').length
+                const updated = resultados.filter(r => r.action === 'updated').length
+                console.log(`📊 Resumen: ${created} creados, ${updated} actualizados de ${stockRegistros.length} registros`)
+
               } catch (error) {
-                console.error('💥 Error general al insertar stock:', error)
+                console.error('💥 Error general al procesar stock:', error)
               }
             } else {
-              console.log(`⚠️ No hay registros de stock válidos para crear`)
+              console.log(`⚠️ No hay registros de stock válidos para procesar`)
             }
           } else {
             console.log(`No hay datos de stock para el producto ${productId}`)
