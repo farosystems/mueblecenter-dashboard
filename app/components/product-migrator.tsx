@@ -181,17 +181,19 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
       // Obtener productos existentes para verificar duplicados por código
       const { data: existingProducts } = await supabase
         .from('productos')
-        .select('id, codigo, descripcion')
+        .select('id, codigo, descripcion, presentacion_id, linea_id, tipo_id')
 
       const productsByCodigo = new Map(
         existingProducts
           ?.filter(p => p.codigo) // Solo productos que tienen código
-          ?.map(p => [p.codigo.toLowerCase().trim(), p.id]) || []
+          ?.map(p => [p.codigo.toLowerCase().trim(), { id: p.id, presentacion_id: p.presentacion_id, linea_id: p.linea_id, tipo_id: p.tipo_id }]) || []
       )
 
       // Mostrar todas las columnas disponibles en el Excel
-      console.log('Columnas disponibles en el Excel:', Object.keys(data[0] || {}))
-      
+      const columnasExcel = Object.keys(data[0] || {})
+      console.log('Columnas disponibles en el Excel:', columnasExcel)
+      console.log('Columnas en detalle:', columnasExcel.map((col, i) => `${i}: "${col}"`))
+
       // Procesar y limpiar los datos
       const processedData = data.map((row, index) => {
         console.log(`\n--- Procesando fila ${index + 1} ---`)
@@ -213,10 +215,10 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
           precio: Number(getValue(['Precio', 'precio']) || 0),
           aplica_todos_plan: Boolean(row.aplica_todos_plan),
           imagen: row.imagen ? String(row.imagen).trim() : undefined,
-          presentacion_nombre: getValue(['Presentacion', 'presentacion', 'presentación']) ?
-            String(getValue(['Presentacion', 'presentacion', 'presentación'])).trim() : undefined,
-          linea_nombre: getValue(['Línea', 'linea', 'Linea']) ?
-            String(getValue(['Línea', 'linea', 'Linea'])).trim() : undefined,
+          presentacion_nombre: getValue(['Presentación', 'Presentacion', 'presentacion', 'presentación']) ?
+            String(getValue(['Presentación', 'Presentacion', 'presentacion', 'presentación'])).trim() : undefined,
+          linea_nombre: getValue(['Línea', 'Linea', 'linea', 'línea']) ?
+            String(getValue(['Línea', 'Linea', 'linea', 'línea'])).trim() : undefined,
           tipo_nombre: getValue(['Tipo', 'tipo']) ?
             String(getValue(['Tipo', 'tipo'])).trim() : undefined,
           _marca_nombre: getValue(['Marca', 'marca']) ?
@@ -236,11 +238,11 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         // Procesar stock de sucursales
         const stockData: { [key: string]: number } = {}
         console.log(`Procesando stock para producto ${index + 1}:`, processed.descripcion)
-        
+
         for (const zona of zonasEsperadas) {
           const variacionesNombre = [zona.charAt(0).toUpperCase() + zona.slice(1), zona, zona.toUpperCase()]
           let stockValue = null
-          
+
           for (const variacion of variacionesNombre) {
             stockValue = getValue([variacion])
             if (stockValue !== undefined && stockValue !== null) {
@@ -248,31 +250,40 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
               break
             }
           }
-          
-          if (stockValue === null) {
+
+          if (stockValue === null || stockValue === undefined) {
             console.log(`  Zona ${zona}: NO encontrado (probando: ${variacionesNombre.join(', ')})`)
+            continue
           }
-          
-          if (stockValue !== undefined && stockValue !== null && stockValue !== '') {
-            const stockNumerico = Number(stockValue) || 0
-            if (stockNumerico > 0) {
-              stockData[zona] = stockNumerico
-              console.log(`    Stock asignado para ${zona}: ${stockNumerico}`)
-            } else {
-              console.log(`    Stock ${zona} es 0 o inválido: ${stockValue}`)
-            }
+
+          // Incluir TODAS las zonas que vienen en el Excel, incluso si es 0
+          // Solo omitir si es un string vacío
+          if (stockValue === '') {
+            console.log(`  Zona ${zona}: valor vacío, omitiendo`)
+            continue
+          }
+
+          const stockNumerico = Number(stockValue)
+          if (!isNaN(stockNumerico)) {
+            stockData[zona] = stockNumerico
+            console.log(`    Stock asignado para ${zona}: ${stockNumerico}`)
+          } else {
+            console.log(`  Zona ${zona}: valor inválido "${stockValue}", omitiendo`)
           }
         }
         processed._stock = stockData
         console.log(`Stock final para ${processed.descripcion}:`, processed._stock)
 
         // Validar y procesar presentación (por ID o nombre)
+        console.log(`Procesando presentación - fk_id_presentacion: ${row.fk_id_presentacion}, presentacion_nombre: ${processed.presentacion_nombre}`)
         if (row.fk_id_presentacion) {
           const valorPresentacion = String(row.fk_id_presentacion).trim()
+          console.log(`  Intentando como ID o nombre: "${valorPresentacion}"`)
           // Primero intentar como ID
           if (presentacionesValidasId.has(valorPresentacion)) {
             processed.fk_id_presentacion = valorPresentacion
             processed._presentacion_nombre = presentacionesMapId.get(valorPresentacion)
+            console.log(`  ✓ Encontrado como ID: ${valorPresentacion} -> ${processed._presentacion_nombre}`)
           } else {
             // Si no es un ID válido, intentar como nombre
             const nombreLower = valorPresentacion.toLowerCase()
@@ -280,22 +291,29 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             if (presentacionId) {
               processed.fk_id_presentacion = presentacionId
               processed._presentacion_nombre = valorPresentacion
+              console.log(`  ✓ Encontrado como nombre: "${valorPresentacion}" -> ID: ${presentacionId}`)
             } else {
+              console.log(`  ✗ No encontrado ni como ID ni como nombre`)
               processed._validation_errors = processed._validation_errors || []
               processed._validation_errors.push(`Presentación "${valorPresentacion}" no existe (ni como ID ni como nombre)`)
             }
           }
         } else if (processed.presentacion_nombre) {
+          console.log(`  Procesando presentacion_nombre: "${processed.presentacion_nombre}"`)
           const nombreLower = processed.presentacion_nombre.toLowerCase()
           const presentacionId = presentacionesMapNombre.get(nombreLower)
           if (presentacionId) {
             processed.fk_id_presentacion = presentacionId
             processed._presentacion_nombre = processed.presentacion_nombre
+            console.log(`  ✓ Encontrado por nombre: "${processed.presentacion_nombre}" -> ID: ${presentacionId}`)
           } else {
+            console.log(`  ✗ Presentación "${processed.presentacion_nombre}" no encontrada`)
+            console.log(`  Presentaciones disponibles:`, Array.from(presentacionesMapNombre.keys()))
             processed._validation_errors = processed._validation_errors || []
             processed._validation_errors.push(`Presentación "${processed.presentacion_nombre}" no existe`)
           }
         }
+        console.log(`  Resultado final - fk_id_presentacion: ${processed.fk_id_presentacion}, _presentacion_nombre: ${processed._presentacion_nombre}`)
 
         // Validar y procesar línea (por ID o nombre)
         if (row.fk_id_linea) {
@@ -381,9 +399,9 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
         } else {
           // Verificar si existe un producto con el mismo código
           if (processed.codigo) {
-            const existingProductId = productsByCodigo.get(processed.codigo.toLowerCase().trim())
-            if (existingProductId) {
-              processed.id = existingProductId
+            const existingProductData = productsByCodigo.get(processed.codigo.toLowerCase().trim())
+            if (existingProductData) {
+              processed.id = existingProductData.id
             }
           }
         }
@@ -462,7 +480,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             try {
               const { data, error: checkError } = await supabase
                 .from('productos')
-                .select('id, precio, aplica_todos_plan')
+                .select('id, precio, aplica_todos_plan, presentacion_id, linea_id, tipo_id, descripcion, fk_id_marca, imagen')
                 .eq('codigo', product.codigo)
                 .single()
 
@@ -499,37 +517,39 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
               console.log(`Actualizando aplica_todos_plan de ${existingProduct.aplica_todos_plan} a ${product.aplica_todos_plan}`)
             }
 
-            // Actualizar otros campos si están presentes
-            if (product.descripcion && product.descripcion.trim()) {
+            // Actualizar descripción si es diferente
+            if (product.descripcion && product.descripcion.trim() && product.descripcion !== existingProduct.descripcion) {
               updateData.descripcion = product.descripcion
               needsUpdate = true
+              console.log(`Actualizando descripción de "${existingProduct.descripcion}" a "${product.descripcion}"`)
             }
 
-            if (product.fk_id_presentacion) {
+            // Actualizar presentación solo si viene en el Excel Y es diferente a la actual
+            if (product.fk_id_presentacion !== undefined && product.fk_id_presentacion !== existingProduct.presentacion_id) {
               updateData.presentacion_id = product.fk_id_presentacion
               needsUpdate = true
+              console.log(`Actualizando presentacion_id de ${existingProduct.presentacion_id} a ${product.fk_id_presentacion}`)
             }
 
-            if (product.fk_id_linea) {
+            // Actualizar línea solo si viene en el Excel Y es diferente a la actual
+            if (product.fk_id_linea !== undefined && product.fk_id_linea !== existingProduct.linea_id) {
               updateData.linea_id = product.fk_id_linea
               needsUpdate = true
+              console.log(`Actualizando linea_id de ${existingProduct.linea_id} a ${product.fk_id_linea}`)
             }
 
-            if (product.fk_id_tipo) {
+            // Actualizar tipo solo si viene en el Excel Y es diferente a la actual
+            if (product.fk_id_tipo !== undefined && product.fk_id_tipo !== existingProduct.tipo_id) {
               updateData.tipo_id = product.fk_id_tipo
               needsUpdate = true
+              console.log(`Actualizando tipo_id de ${existingProduct.tipo_id} a ${product.fk_id_tipo}`)
             }
 
-            if (product.fk_id_marca) {
+            // Actualizar marca solo si viene en el Excel Y es diferente a la actual
+            if (product.fk_id_marca !== undefined && product.fk_id_marca !== existingProduct.fk_id_marca) {
               updateData.fk_id_marca = product.fk_id_marca
               needsUpdate = true
-            }
-
-            // Solo actualizar imagen si viene una nueva en el Excel
-            if (product.imagen && product.imagen.trim() !== '') {
-              updateData.imagen = product.imagen
-              needsUpdate = true
-              console.log(`Actualizando imagen a: ${product.imagen}`)
+              console.log(`Actualizando fk_id_marca de ${existingProduct.fk_id_marca} a ${product.fk_id_marca}`)
             }
 
             // Solo actualizar si hay cambios
@@ -674,20 +694,17 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 console.log(`🔍 Zonas disponibles:`, Array.from(zonasMapLocal.keys()))
                 continue
               }
-              
-              if (cantidad > 0) {
-                const registro = {
-                  fk_id_producto: productId,
-                  fk_id_zona: zonaId,
-                  stock: cantidad,
-                  stock_minimo: 0,
-                  activo: true
-                }
-                stockRegistros.push(registro)
-                console.log(`✅ Registro preparado:`, registro)
-              } else {
-                console.log(`⚠️ Cantidad es 0 o negativa, omitiendo: ${cantidad}`)
+
+              // Incluir TODOS los stocks del Excel, incluso si es 0
+              const registro = {
+                fk_id_producto: productId,
+                fk_id_zona: zonaId,
+                stock: cantidad,
+                stock_minimo: 0,
+                activo: true
               }
+              stockRegistros.push(registro)
+              console.log(`✅ Registro preparado:`, registro)
             }
             
             console.log(`📝 Registros totales a crear:`, stockRegistros.length)
@@ -719,24 +736,29 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                     }
 
                     if (existingStock) {
-                      // ACTUALIZAR registro existente
-                      console.log(`♻️ Actualizando registro existente (ID: ${existingStock.id}) de stock ${existingStock.stock} a ${registro.stock}`)
+                      // ACTUALIZAR registro existente solo si el stock es diferente
+                      if (existingStock.stock !== registro.stock) {
+                        console.log(`♻️ Actualizando registro existente (ID: ${existingStock.id}) de stock ${existingStock.stock} a ${registro.stock}`)
 
-                      const { data: stockData, error: stockError } = await supabase
-                        .from('stock_sucursales')
-                        .update({
-                          stock: registro.stock,
-                          stock_minimo: registro.stock_minimo,
-                          activo: registro.activo
-                        })
-                        .eq('id', existingStock.id)
-                        .select()
+                        const { data: stockData, error: stockError } = await supabase
+                          .from('stock_sucursales')
+                          .update({
+                            stock: registro.stock,
+                            stock_minimo: registro.stock_minimo,
+                            activo: registro.activo
+                          })
+                          .eq('id', existingStock.id)
+                          .select()
 
-                      if (stockError) {
-                        console.error(`❌ Error al actualizar registro:`, stockError)
+                        if (stockError) {
+                          console.error(`❌ Error al actualizar registro:`, stockError)
+                        } else {
+                          console.log(`✅ Registro actualizado exitosamente:`, stockData)
+                          resultados.push({ action: 'updated', data: stockData[0] })
+                        }
                       } else {
-                        console.log(`✅ Registro actualizado exitosamente:`, stockData)
-                        resultados.push({ action: 'updated', data: stockData[0] })
+                        console.log(`⏭️ Stock sin cambios (ID: ${existingStock.id}), omitiendo actualización: stock = ${existingStock.stock}`)
+                        resultados.push({ action: 'unchanged', data: existingStock })
                       }
                     } else {
                       // CREAR nuevo registro
@@ -761,7 +783,8 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
 
                 const created = resultados.filter(r => r.action === 'created').length
                 const updated = resultados.filter(r => r.action === 'updated').length
-                console.log(`📊 Resumen: ${created} creados, ${updated} actualizados de ${stockRegistros.length} registros`)
+                const unchanged = resultados.filter(r => r.action === 'unchanged').length
+                console.log(`📊 Resumen: ${created} creados, ${updated} actualizados, ${unchanged} sin cambios de ${stockRegistros.length} registros`)
 
               } catch (error) {
                 console.error('💥 Error general al procesar stock:', error)
@@ -1114,7 +1137,10 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             )}
 
             <div className="flex justify-center">
-              <Button onClick={() => setIsDialogOpen(false)}>
+              <Button onClick={() => {
+                setIsDialogOpen(false)
+                window.location.reload()
+              }}>
                 Cerrar
               </Button>
             </div>
