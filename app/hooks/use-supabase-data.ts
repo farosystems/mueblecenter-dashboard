@@ -140,18 +140,39 @@ export function useSupabaseData() {
   // Cargar productos por plan (carga ligera inicial)
   const loadProductosPorPlan = async () => {
     try {
-      const { data, error } = await supabase
+      // Cargar primero los datos básicos
+      const { data: planesData, error } = await supabase
         .from('producto_planes')
-        .select(`
-          *,
-          producto:fk_id_producto(*),
-          plan:fk_id_plan(*)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
-        .limit(500) // Limitar carga inicial
 
-      if (error) throw error
-      setProductosPorPlan(data || [])
+      if (error) {
+        console.error('Error en query producto_planes:', error)
+        throw error
+      }
+
+      // Cargar productos y planes relacionados
+      const productosIds = [...new Set(planesData?.map(p => p.fk_id_producto) || [])]
+      const planesIds = [...new Set(planesData?.map(p => p.fk_id_plan) || [])]
+
+      const [{ data: productosData }, { data: planesFinData }] = await Promise.all([
+        supabase.from('productos').select('id, codigo, descripcion, precio, destacado').in('id', productosIds),
+        supabase.from('planes_financiacion').select('id, nombre, cuotas, recargo_porcentual, recargo_fijo, anticipo_minimo, anticipo_minimo_fijo').in('id', planesIds)
+      ])
+
+      // Crear mapas para búsqueda rápida
+      const productosMap = new Map(productosData?.map(p => [p.id, p]) || [])
+      const planesMap = new Map(planesFinData?.map(p => [p.id, p]) || [])
+
+      // Combinar los datos
+      const transformedData = planesData?.map(item => ({
+        ...item,
+        producto: productosMap.get(item.fk_id_producto),
+        plan: planesMap.get(item.fk_id_plan)
+      })) || []
+
+      console.log(`✅ Productos por plan cargados: ${transformedData.length} registros`)
+      setProductosPorPlan(transformedData)
     } catch (err) {
       setError('Error al cargar productos por plan')
       console.error('Error loading productos_plan:', err)

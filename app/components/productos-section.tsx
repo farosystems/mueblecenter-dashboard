@@ -364,6 +364,23 @@ export const ProductosSection = React.memo(({
   }
 
   const handleEdit = (producto: Producto) => {
+    console.log('📝 Editando producto:', {
+      id: producto.id,
+      codigo: producto.codigo,
+      presentacion_id: producto.presentacion_id,
+      linea_id: producto.linea_id,
+      tipo_id: producto.tipo_id
+    })
+
+    console.log('📋 Líneas disponibles:', lineas.map(l => ({ id: l.id, nombre: l.nombre, presentacion_id: l.presentacion_id })))
+    console.log('📋 Tipos disponibles:', tipos.map(t => ({ id: t.id, nombre: t.nombre, linea_id: t.linea_id })))
+
+    const lineasFiltradas = lineas.filter(l => l.activo && l.presentacion_id === producto.presentacion_id)
+    const tiposFiltrados = tipos.filter(t => t.activo && t.linea_id === producto.linea_id)
+
+    console.log(`🔍 Líneas filtradas para presentacion_id="${producto.presentacion_id}":`, lineasFiltradas.map(l => ({ id: l.id, nombre: l.nombre })))
+    console.log(`🔍 Tipos filtrados para linea_id="${producto.linea_id}":`, tiposFiltrados.map(t => ({ id: t.id, nombre: t.nombre })))
+
     setEditingProduct(producto)
     // Recopilar todas las URLs de imagen en un array, filtrando nulos/indefinidos/cadenas vacías
     const productImages = [
@@ -379,9 +396,9 @@ export const ProductosSection = React.memo(({
       descripcion: producto.descripcion || "",
       descripcion_detallada: producto.descripcion_detallada || "",
       precio: producto.precio?.toString() || "",
-      presentacion_id: producto.presentacion_id?.toString(),
-      linea_id: producto.linea_id?.toString(),
-      tipo_id: producto.tipo_id?.toString(),
+      presentacion_id: producto.presentacion_id || undefined,
+      linea_id: producto.linea_id || undefined,
+      tipo_id: producto.tipo_id || undefined,
       fk_id_marca: producto.fk_id_marca?.toString(),
       imagenes: productImages,
       cucardas: producto.cucardas || "",
@@ -1070,11 +1087,16 @@ export const ProductosSection = React.memo(({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="linea">Línea</Label>
+                  <div className="text-xs text-gray-500 mb-1">
+                    Valor: {formData.linea_id || 'sin valor'} |
+                    Opciones: {lineas.filter(l => l.activo && l.presentacion_id === formData.presentacion_id).length}
+                  </div>
                   <Select
                     value={formData.linea_id}
                     onValueChange={(value) => {
-                      setFormData({ 
-                        ...formData, 
+                      console.log('🔄 Cambiando línea a:', value)
+                      setFormData({
+                        ...formData,
                         linea_id: value,
                         tipo_id: undefined // Reset tipo cuando cambia línea
                       })
@@ -1097,9 +1119,16 @@ export const ProductosSection = React.memo(({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tipo">Tipo</Label>
+                  <div className="text-xs text-gray-500 mb-1">
+                    Valor: {formData.tipo_id || 'sin valor'} |
+                    Opciones: {tipos.filter(t => t.activo && t.linea_id === formData.linea_id).length}
+                  </div>
                   <Select
                     value={formData.tipo_id}
-                    onValueChange={(value) => setFormData({ ...formData, tipo_id: value })}
+                    onValueChange={(value) => {
+                      console.log('🔄 Cambiando tipo a:', value)
+                      setFormData({ ...formData, tipo_id: value })
+                    }}
                     disabled={isCreating || !formData.linea_id}
                   >
                     <SelectTrigger>

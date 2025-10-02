@@ -324,54 +324,36 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
     setCurrentPage(page)
   }
 
-  // Debug: mostrar datos disponibles
-  React.useEffect(() => {
-    if (filterZona !== "all") {
-      console.log('=== FILTRO ZONA DEBUG ===')
-      console.log('FilterZona seleccionado:', filterZona)
-      console.log('Stock sucursales disponibles:', stockSucursales.map(s => ({
-        id: s.id,
-        fk_id_zona: s.fk_id_zona,
-        fk_id_producto: s.fk_id_producto
-      })))
-      console.log('Zonas disponibles:', zonas.map(z => ({
-        id: z.id,
-        nombre: z.nombre
-      })))
-      console.log('========================')
-    }
-  }, [filterZona, stockSucursales, zonas])
+  // Crear mapas para búsquedas rápidas O(1)
+  const productosMap = React.useMemo(() => {
+    return new Map(productos.map(p => [p.id, p]))
+  }, [productos])
 
-  // Filtrar datos
-  const filteredData = stockSucursales.filter(item => {
-    const producto = productos.find(p => p.id === item.fk_id_producto)
-    const zona = zonas.find(z => z.id === item.fk_id_zona)
-    
-    const matchesSearch = searchTerm === "" || 
-      producto?.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      zona?.nombre?.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesProducto = filterProducto === "all" || item.fk_id_producto.toString() === filterProducto
-    const matchesZona = filterZona === "all" || item.fk_id_zona.toString().trim() === filterZona.toString().trim()
-    const matchesActivo = filterActivo === "all" || 
-      (filterActivo === "active" && item.activo) ||
-      (filterActivo === "inactive" && !item.activo)
+  const zonasMap = React.useMemo(() => {
+    return new Map(zonas.map(z => [z.id, z]))
+  }, [zonas])
 
-    // Debug logging para identificar el problema
-    if (filterZona !== "all" && !matchesZona) {
-      console.log('Filtro zona debug:', {
-        filterZona,
-        item_fk_id_zona: item.fk_id_zona,
-        item_fk_id_zona_string: item.fk_id_zona.toString(),
-        zona_encontrada: zona,
-        matchesZona,
-        comparacion: `"${item.fk_id_zona.toString()}" === "${filterZona}"`,
-        resultado: item.fk_id_zona.toString() === filterZona
-      })
-    }
+  // Filtrar datos con búsquedas optimizadas
+  const filteredData = React.useMemo(() => {
+    const searchLower = searchTerm.toLowerCase()
 
-    return matchesSearch && matchesProducto && matchesZona && matchesActivo
-  })
+    return stockSucursales.filter(item => {
+      const producto = productosMap.get(item.fk_id_producto)
+      const zona = zonasMap.get(item.fk_id_zona)
+
+      const matchesSearch = searchTerm === "" ||
+        producto?.descripcion.toLowerCase().includes(searchLower) ||
+        zona?.nombre?.toLowerCase().includes(searchLower)
+
+      const matchesProducto = filterProducto === "all" || item.fk_id_producto.toString() === filterProducto
+      const matchesZona = filterZona === "all" || item.fk_id_zona.toString() === filterZona
+      const matchesActivo = filterActivo === "all" ||
+        (filterActivo === "active" && item.activo) ||
+        (filterActivo === "inactive" && !item.activo)
+
+      return matchesSearch && matchesProducto && matchesZona && matchesActivo
+    })
+  }, [stockSucursales, searchTerm, filterProducto, filterZona, filterActivo, productosMap, zonasMap])
 
   // Calcular paginación
   const totalPages = Math.ceil(filteredData.length / pageSize)
@@ -646,9 +628,9 @@ ${productos.length > 1 ? productos[1].descripcion : 'Producto Ejemplo 2'},${zona
             </TableHeader>
             <TableBody>
               {paginatedData.map((item) => {
-                const producto = productos.find(p => p.id === item.fk_id_producto)
-                const zona = zonas.find(z => z.id === item.fk_id_zona)
-                
+                const producto = productosMap.get(item.fk_id_producto)
+                const zona = zonasMap.get(item.fk_id_zona)
+
                 return (
                   <TableRow key={item.id}>
                     <TableCell className="text-sm text-gray-600">

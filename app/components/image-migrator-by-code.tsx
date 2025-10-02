@@ -61,11 +61,13 @@ export const ImageMigratorByCode: React.FC<ImageMigratorByCodeProps> = ({
 
   // Función para verificar si un producto no tiene imágenes
   const hasNoImages = (producto: Producto): boolean => {
-    return !producto.imagen &&
-           !producto.imagen_2 &&
-           !producto.imagen_3 &&
-           !producto.imagen_4 &&
-           !producto.imagen_5
+    const hasImage1 = producto.imagen && producto.imagen.trim() !== ''
+    const hasImage2 = producto.imagen_2 && producto.imagen_2.trim() !== ''
+    const hasImage3 = producto.imagen_3 && producto.imagen_3.trim() !== ''
+    const hasImage4 = producto.imagen_4 && producto.imagen_4.trim() !== ''
+    const hasImage5 = producto.imagen_5 && producto.imagen_5.trim() !== ''
+
+    return !hasImage1 && !hasImage2 && !hasImage3 && !hasImage4 && !hasImage5
   }
 
   // Manejar selección de archivos
@@ -125,7 +127,16 @@ export const ImageMigratorByCode: React.FC<ImageMigratorByCodeProps> = ({
       }
 
       // Verificar que el producto no tenga imágenes
+      console.log(`🔍 Verificando imágenes del producto ${parsed.codigo}:`, {
+        imagen: producto.imagen,
+        imagen_2: producto.imagen_2,
+        imagen_3: producto.imagen_3,
+        imagen_4: producto.imagen_4,
+        imagen_5: producto.imagen_5
+      })
+
       if (!hasNoImages(producto)) {
+        console.log(`❌ Producto ${parsed.codigo} tiene imágenes, rechazando`)
         newImageFiles.push({
           file,
           codigo: parsed.codigo,
@@ -136,6 +147,8 @@ export const ImageMigratorByCode: React.FC<ImageMigratorByCodeProps> = ({
         })
         return
       }
+
+      console.log(`✅ Producto ${parsed.codigo} no tiene imágenes, aceptando`)
 
       // Verificar que no se excedan las 5 imágenes por producto
       if (!imagesByProduct.has(parsed.codigo)) {

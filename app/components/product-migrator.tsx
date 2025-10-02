@@ -219,8 +219,8 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             String(getValue(['Presentación', 'Presentacion', 'presentacion', 'presentación'])).trim() : undefined,
           linea_nombre: getValue(['Línea', 'Linea', 'linea', 'línea']) ?
             String(getValue(['Línea', 'Linea', 'linea', 'línea'])).trim() : undefined,
-          tipo_nombre: getValue(['Tipo', 'tipo']) ?
-            String(getValue(['Tipo', 'tipo'])).trim() : undefined,
+          tipo_nombre: getValue(['Tipo artículo', 'Tipo Artículo', 'Tipo', 'tipo', 'tipo_articulo']) ?
+            String(getValue(['Tipo artículo', 'Tipo Artículo', 'Tipo', 'tipo', 'tipo_articulo'])).trim() : undefined,
           _marca_nombre: getValue(['Marca', 'marca']) ?
             String(getValue(['Marca', 'marca'])).trim() : undefined,
         }
@@ -431,15 +431,115 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
     }
 
     try {
-      for (let i = 0; i < previewData.length; i++) {
-        const product = previewData[i]
-        setProgress(Math.round(((i + 1) / previewData.length) * 100))
+      // Pre-cargar todos los datos necesarios UNA SOLA VEZ
+      console.log('🚀 Pre-cargando datos necesarios...')
+
+      const codigosABuscar = [...new Set(
+        previewData
+          .filter(p => p.codigo && p.codigo.trim() !== '' && !p.id)
+          .map(p => p.codigo.toLowerCase().trim())
+      )]
+
+      console.log(`🔍 Buscando ${codigosABuscar.length} códigos únicos en la base de datos...`)
+      console.log(`📋 Primeros 5 códigos a buscar:`, codigosABuscar.slice(0, 5))
+
+      // Buscar en lotes de 200 códigos para evitar URL demasiado larga
+      const BATCH_SIZE_QUERY = 200
+      const existingProductsData = []
+
+      for (let i = 0; i < codigosABuscar.length; i += BATCH_SIZE_QUERY) {
+        const batch = codigosABuscar.slice(i, i + BATCH_SIZE_QUERY)
+        console.log(`🔎 Buscando lote ${Math.floor(i / BATCH_SIZE_QUERY) + 1}/${Math.ceil(codigosABuscar.length / BATCH_SIZE_QUERY)} (${batch.length} códigos)`)
+
+        const { data, error } = await supabase
+          .from('productos')
+          .select('id, codigo, precio, aplica_todos_plan, presentacion_id, linea_id, tipo_id, descripcion, fk_id_marca, imagen')
+          .in('codigo', batch)
+
+        if (error) {
+          console.error(`❌ Error al buscar lote:`, error)
+        } else if (data) {
+          existingProductsData.push(...data)
+        }
+      }
+
+      console.log(`✅ Encontrados ${existingProductsData.length} productos existentes`)
+      if (existingProductsData.length > 0) {
+        console.log(`📋 Primeros 5 productos encontrados:`, existingProductsData.slice(0, 5).map(p => `${p.codigo} (ID: ${p.id})`))
+      }
+
+      const existingProductsMap = new Map(
+        existingProductsData.map(p => [p.codigo.toLowerCase().trim(), p])
+      )
+
+      console.log(`🗺️ Mapa de productos existentes tiene ${existingProductsMap.size} entradas`)
+      console.log(`🔑 Primeras 5 claves del mapa:`, Array.from(existingProductsMap.keys()).slice(0, 5))
+
+      // Pre-cargar todos los stocks de los productos existentes
+      const existingProductIds = [...new Set(existingProductsData?.map(p => p.id) || [])]
+      const { data: allStocksData } = await supabase
+        .from('stock_sucursales')
+        .select('fk_id_producto, fk_id_zona, stock')
+        .in('fk_id_producto', existingProductIds)
+
+      const stocksByProduct = new Map()
+      allStocksData?.forEach(stock => {
+        if (!stocksByProduct.has(stock.fk_id_producto)) {
+          stocksByProduct.set(stock.fk_id_producto, new Map())
+        }
+        stocksByProduct.get(stock.fk_id_producto).set(stock.fk_id_zona, stock.stock)
+      })
+
+      // Pre-cargar zonas
+      const { data: zonasData } = await supabase.from('zonas').select('id, nombre')
+      const zonasMapLocal = new Map(zonasData?.map(z => [z.nombre.toLowerCase().trim(), z.id]) || [])
+
+      // Pre-cargar planes activos sin categorías (para aplica_todos_plan)
+      const { data: planesDisponibles } = await supabase
+        .from('planes_financiacion')
+        .select('id, nombre, activo')
+        .eq('activo', true)
+
+      const { data: planesCategorias } = await supabase
+        .from('planes_categorias')
+        .select('fk_id_plan')
+
+      const planesConCategorias = planesCategorias?.map(pc => pc.fk_id_plan) || []
+      const planesSinCategorias = planesDisponibles?.filter(plan => !planesConCategorias.includes(plan.id)) || []
+
+      console.log('✅ Datos pre-cargados. Iniciando migración...')
+
+      // Agrupar productos por código para evitar condiciones de carrera
+      const productsByCode = new Map<string, typeof previewData>()
+      previewData.forEach(product => {
+        const code = product.codigo?.toLowerCase().trim() || `_no_code_${Math.random()}`
+        if (!productsByCode.has(code)) {
+          productsByCode.set(code, [])
+        }
+        productsByCode.get(code)!.push(product)
+      })
+
+      console.log(`📦 Agrupados en ${productsByCode.size} códigos únicos`)
+
+      // Procesar grupos de códigos en paralelo, pero productos del mismo código en secuencia
+      const codeGroups = Array.from(productsByCode.values())
+      const BATCH_SIZE = 50
+
+      for (let batchStart = 0; batchStart < codeGroups.length; batchStart += BATCH_SIZE) {
+        const batch = codeGroups.slice(batchStart, batchStart + BATCH_SIZE)
+        setProgress(Math.round(((batchStart + batch.length) / codeGroups.length) * 100))
+
+        // Procesar grupos en paralelo (cada grupo tiene productos del mismo código)
+        await Promise.all(batch.map(async (productsGroup) => {
+          // Pero productos del mismo código se procesan en secuencia
+          for (const product of productsGroup) {
+            const i = previewData.indexOf(product)
 
         try {
           // Verificar si hay errores de validación previos
           if (product._validation_errors && product._validation_errors.length > 0) {
             result.errors.push(`Fila ${i + 1} (${product.descripcion}): ${product._validation_errors.join(', ')}`)
-            continue
+            return
           }
 
           // Preparar datos base del producto
@@ -452,52 +552,41 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             linea_id: product.fk_id_linea || null,
             tipo_id: product.fk_id_tipo || null,
             fk_id_marca: product.fk_id_marca || null,
-            activo: true // Por defecto activo
+            activo: true
           }
 
           // Solo incluir imagen para productos nuevos si viene en el Excel
           if (product.imagen && product.imagen.trim() !== '') {
             productData.imagen = product.imagen
           }
-          
-          console.log(`Datos del producto a insertar:`, {
-            descripcion: productData.descripcion,
-            imagen: productData.imagen,
-            producto_imagen_original: product.imagen
-          })
 
           let productId: number
-
           let existingProduct = null
 
           if (product.id) {
-            // Si viene con ID, usar ese ID
             existingProduct = { id: product.id }
             productId = product.id
-          } else if (product.codigo) {
-            // Buscar producto existente por código
-            console.log(`Verificando si existe producto con código: ${product.codigo}`)
-            try {
-              const { data, error: checkError } = await supabase
-                .from('productos')
-                .select('id, precio, aplica_todos_plan, presentacion_id, linea_id, tipo_id, descripcion, fk_id_marca, imagen')
-                .eq('codigo', product.codigo)
-                .single()
-
-              if (!checkError) {
-                existingProduct = data
-                productId = data.id
-              } else if (checkError.code !== 'PGRST116') {
-                console.warn(`Error al verificar producto existente:`, checkError)
-              }
-            } catch (error) {
-              console.warn(`Error en verificación de producto existente:`, error)
+          } else if (product.codigo && product.codigo.trim() !== '') {
+            // Usar datos pre-cargados en lugar de query
+            const codigoNormalizado = product.codigo.toLowerCase().trim()
+            console.log(`🔍 Buscando código: "${codigoNormalizado}" (original: "${product.codigo}")`)
+            existingProduct = existingProductsMap.get(codigoNormalizado)
+            if (existingProduct) {
+              productId = existingProduct.id
+              console.log(`✅ Producto existente encontrado: ${product.codigo} (ID: ${productId})`)
+            } else {
+              console.log(`❌ Producto NO encontrado en mapa. Creando nuevo: ${product.codigo}`)
+              console.log(`🔑 El mapa tiene estas claves similares:`, Array.from(existingProductsMap.keys()).filter(k => k.includes(codigoNormalizado.substring(0, 3))).slice(0, 3))
             }
+          } else {
+            // Si no hay código, saltar este producto
+            result.errors.push(`Fila ${i + 1}: Producto sin código válido`)
+            return
           }
 
           if (existingProduct) {
-            // Actualizar producto existente
-            console.log(`Actualizando producto existente: ${product.codigo} - ${product.descripcion}`)
+            // Verificar si hay cambios en el producto
+            console.log(`Verificando cambios en producto existente: ${product.codigo} - ${product.descripcion}`)
 
             // Preparar datos para actualización
             const updateData: any = {}
@@ -552,7 +641,7 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
               console.log(`Actualizando fk_id_marca de ${existingProduct.fk_id_marca} a ${product.fk_id_marca}`)
             }
 
-            // Solo actualizar si hay cambios
+            // Actualizar producto si hay cambios
             if (needsUpdate) {
               const { error: updateError } = await supabase
                 .from('productos')
@@ -563,9 +652,48 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
                 console.error(`Error al actualizar producto:`, updateError)
                 throw updateError
               }
-              console.log(`Producto actualizado con ID: ${productId}`)
-            } else {
-              console.log(`Producto sin cambios, omitiendo actualización: ${productId}`)
+            }
+
+            // Siempre actualizar stock si viene en el Excel
+            if (product._stock && Object.keys(product._stock).length > 0) {
+              const stockRegistros = []
+
+              for (const [nombreZona, cantidad] of Object.entries(product._stock)) {
+                const zonaId = zonasMapLocal.get(nombreZona.toLowerCase().trim())
+                if (zonaId) {
+                  stockRegistros.push({
+                    fk_id_producto: productId,
+                    fk_id_zona: zonaId,
+                    stock: cantidad,
+                    stock_minimo: 0,
+                    activo: true
+                  })
+                }
+              }
+
+              if (stockRegistros.length > 0) {
+                // Primero eliminar stock existente para este producto
+                await supabase
+                  .from('stock_sucursales')
+                  .delete()
+                  .eq('fk_id_producto', productId)
+
+                // Luego insertar los nuevos registros
+                const { error: stockError } = await supabase
+                  .from('stock_sucursales')
+                  .insert(stockRegistros)
+
+                if (stockError) {
+                  console.error(`❌ Error al insertar stock para producto ${productId}:`, stockError)
+                  throw stockError
+                }
+              }
+            }
+
+            // Si no hay cambios en el producto, omitir (pero el stock ya se procesó)
+            if (!needsUpdate) {
+              result.skipped++
+              return // Saltar al siguiente producto
             }
 
           } else {
@@ -583,6 +711,47 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             }
             productId = data.id
             console.log(`Producto creado con ID: ${productId}`)
+
+            // Agregar al mapa para evitar duplicados en el mismo batch
+            if (product.codigo) {
+              existingProductsMap.set(product.codigo.toLowerCase().trim(), {
+                id: productId,
+                codigo: product.codigo,
+                precio: product.precio,
+                aplica_todos_plan: product.aplica_todos_plan || false,
+                presentacion_id: product.fk_id_presentacion || null,
+                linea_id: product.fk_id_linea || null,
+                tipo_id: product.fk_id_tipo || null,
+                descripcion: product.descripcion,
+                fk_id_marca: product.fk_id_marca || null,
+                imagen: product.imagen || null
+              })
+            }
+
+            // Crear registros de stock para productos nuevos
+            if (product._stock && Object.keys(product._stock).length > 0) {
+              const stockRegistros = []
+
+              for (const [nombreZona, cantidad] of Object.entries(product._stock)) {
+                const zonaId = zonasMapLocal.get(nombreZona.toLowerCase().trim())
+                if (zonaId) {
+                  stockRegistros.push({
+                    fk_id_producto: productId,
+                    fk_id_zona: zonaId,
+                    stock: cantidad,
+                    stock_minimo: 0,
+                    activo: true
+                  })
+                }
+              }
+
+              if (stockRegistros.length > 0) {
+                console.log(`Creando stock para nuevo producto ${productId}:`, stockRegistros)
+                await supabase
+                  .from('stock_sucursales')
+                  .insert(stockRegistros)
+              }
+            }
           }
 
           // Manejar asociaciones con planes solo cuando sea necesario
@@ -591,37 +760,13 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             : product.aplica_todos_plan // Producto nuevo con aplica_todos_plan = true
 
           if (shouldCreatePlanAssociations) {
-            console.log(`Creando asociaciones de planes para producto ${productId} (aplica_todos_plan cambió a true o es producto nuevo)`)
-
-            // Primero eliminar asociaciones existentes para este producto
+            // Primero eliminar asociaciones existentes
             await supabase
               .from('producto_planes_default')
               .delete()
               .eq('fk_id_producto', productId)
 
-            // Obtener todos los planes activos que NO tengan categorías definidas
-            const { data: planesDisponibles, error: planesError } = await supabase
-              .from('planes_financiacion')
-              .select(`
-                id,
-                nombre,
-                activo
-              `)
-              .eq('activo', true)
-
-            if (planesError) throw planesError
-
-            // Filtrar planes que NO tienen categorías asociadas
-            const { data: planesCategorias, error: planesCatError } = await supabase
-              .from('planes_categorias')
-              .select('fk_id_plan')
-
-            if (planesCatError) throw planesCatError
-
-            const planesConCategorias = planesCategorias.map(pc => pc.fk_id_plan)
-            const planesSinCategorias = planesDisponibles.filter(plan => !planesConCategorias.includes(plan.id))
-
-            // Crear las asociaciones
+            // Usar planes pre-cargados
             const asociaciones = planesSinCategorias.map(plan => ({
               fk_id_producto: productId,
               fk_id_plan: plan.id,
@@ -629,15 +774,9 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
             }))
 
             if (asociaciones.length > 0) {
-              const { error: asociacionError } = await supabase
+              await supabase
                 .from('producto_planes_default')
                 .insert(asociaciones)
-
-              if (asociacionError) {
-                console.warn(`Error al crear asociaciones para producto ${productId}:`, asociacionError)
-              } else {
-                console.log(`Creadas ${asociaciones.length} asociaciones de planes para producto ${productId}`)
-              }
             }
           } else if (existingProduct && !product.aplica_todos_plan && existingProduct.aplica_todos_plan) {
             // Si cambió de true a false, eliminar asociaciones
@@ -648,160 +787,16 @@ export function ProductMigrator({ onMigrationComplete }: ProductMigratorProps) {
               .eq('fk_id_producto', productId)
           }
 
-          // Crear registros de stock en stock_sucursales
-          console.log(`\n🏪 === CREANDO STOCK PARA PRODUCTO ${productId} ===`)
-          console.log(`📦 Stock data del producto:`, product._stock)
-          console.log(`🚀 CHECKPOINT: Llegamos hasta aquí!`)
-          
-          // Obtener zonas nuevamente aquí para asegurar que esté en scope
-          let zonasLocales = null
-          try {
-            const result = await supabase.from('zonas').select('id, nombre')
-            zonasLocales = result.data || []
-          } catch (error) {
-            console.error('Error obteniendo zonas:', error)
-            zonasLocales = [
-              { id: 1, nombre: 'Central' },
-              { id: 2, nombre: 'Cardales' },
-              { id: 3, nombre: 'Garin' },
-              { id: 4, nombre: 'Maschwitz' },
-              { id: 5, nombre: 'Capilla' },
-              { id: 6, nombre: 'Matheu' }
-            ]
-          }
-          
-          // Recrear el mapa de zonas
-          const zonasMapLocal = new Map(zonasLocales.map(z => {
-            const nombreLower = z.nombre.toLowerCase().trim()
-            return [nombreLower, z.id]
-          }))
-          
-          console.log(`🗺️ Zonas disponibles en BD:`, Array.from(zonasMapLocal.keys()))
-          
-          if (product._stock && Object.keys(product._stock).length > 0) {
-            const stockRegistros = []
-            
-            for (const [nombreZona, cantidad] of Object.entries(product._stock)) {
-              console.log(`\n🔍 Procesando zona: "${nombreZona}" con cantidad: ${cantidad}`)
-              const nombreZonaLower = nombreZona.toLowerCase().trim()
-              console.log(`🔍 Buscando zona como: "${nombreZonaLower}"`)
-              
-              const zonaId = zonasMapLocal.get(nombreZonaLower)
-              console.log(`🆔 ID de zona encontrado: ${zonaId}`)
-              
-              if (!zonaId) {
-                console.warn(`⚠️ No se encontró ID para la zona "${nombreZona}" (buscado como "${nombreZonaLower}")`)
-                console.log(`🔍 Zonas disponibles:`, Array.from(zonasMapLocal.keys()))
-                continue
-              }
-
-              // Incluir TODOS los stocks del Excel, incluso si es 0
-              const registro = {
-                fk_id_producto: productId,
-                fk_id_zona: zonaId,
-                stock: cantidad,
-                stock_minimo: 0,
-                activo: true
-              }
-              stockRegistros.push(registro)
-              console.log(`✅ Registro preparado:`, registro)
-            }
-            
-            console.log(`📝 Registros totales a crear:`, stockRegistros.length)
-            console.log(`📋 Datos completos a insertar:`, stockRegistros)
-            
-            if (stockRegistros.length > 0) {
-              console.log('💾 Procesando registros de stock_sucursales:', stockRegistros)
-
-              try {
-                // Procesar cada registro individualmente con lógica de upsert
-                const resultados = []
-
-                for (let i = 0; i < stockRegistros.length; i++) {
-                  const registro = stockRegistros[i]
-                  console.log(`🔄 Procesando registro ${i + 1}/${stockRegistros.length}:`, registro)
-
-                  try {
-                    // Verificar si ya existe un registro para este producto y zona
-                    const { data: existingStock, error: checkError } = await supabase
-                      .from('stock_sucursales')
-                      .select('id, stock')
-                      .eq('fk_id_producto', registro.fk_id_producto)
-                      .eq('fk_id_zona', registro.fk_id_zona)
-                      .maybeSingle()
-
-                    if (checkError) {
-                      console.error(`❌ Error al verificar stock existente:`, checkError)
-                      continue
-                    }
-
-                    if (existingStock) {
-                      // ACTUALIZAR registro existente solo si el stock es diferente
-                      if (existingStock.stock !== registro.stock) {
-                        console.log(`♻️ Actualizando registro existente (ID: ${existingStock.id}) de stock ${existingStock.stock} a ${registro.stock}`)
-
-                        const { data: stockData, error: stockError } = await supabase
-                          .from('stock_sucursales')
-                          .update({
-                            stock: registro.stock,
-                            stock_minimo: registro.stock_minimo,
-                            activo: registro.activo
-                          })
-                          .eq('id', existingStock.id)
-                          .select()
-
-                        if (stockError) {
-                          console.error(`❌ Error al actualizar registro:`, stockError)
-                        } else {
-                          console.log(`✅ Registro actualizado exitosamente:`, stockData)
-                          resultados.push({ action: 'updated', data: stockData[0] })
-                        }
-                      } else {
-                        console.log(`⏭️ Stock sin cambios (ID: ${existingStock.id}), omitiendo actualización: stock = ${existingStock.stock}`)
-                        resultados.push({ action: 'unchanged', data: existingStock })
-                      }
-                    } else {
-                      // CREAR nuevo registro
-                      console.log(`➕ Creando nuevo registro de stock`)
-
-                      const { data: stockData, error: stockError } = await supabase
-                        .from('stock_sucursales')
-                        .insert([registro])
-                        .select()
-
-                      if (stockError) {
-                        console.error(`❌ Error al crear registro:`, stockError)
-                      } else {
-                        console.log(`✅ Registro creado exitosamente:`, stockData)
-                        resultados.push({ action: 'created', data: stockData[0] })
-                      }
-                    }
-                  } catch (insertError) {
-                    console.error(`💥 Exception al procesar registro ${i + 1}:`, insertError)
-                  }
-                }
-
-                const created = resultados.filter(r => r.action === 'created').length
-                const updated = resultados.filter(r => r.action === 'updated').length
-                const unchanged = resultados.filter(r => r.action === 'unchanged').length
-                console.log(`📊 Resumen: ${created} creados, ${updated} actualizados, ${unchanged} sin cambios de ${stockRegistros.length} registros`)
-
-              } catch (error) {
-                console.error('💥 Error general al procesar stock:', error)
-              }
-            } else {
-              console.log(`⚠️ No hay registros de stock válidos para procesar`)
-            }
-          } else {
-            console.log(`No hay datos de stock para el producto ${productId}`)
-          }
-
           result.success++
         } catch (error) {
           const errorMsg = error instanceof Error ? error.message : 'Error desconocido'
           result.errors.push(`Fila ${i + 1} (${product.descripcion}): ${errorMsg}`)
         }
-      }
+          } // Fin del for de productos del mismo código
+        })) // Fin del Promise.all de grupos
+      } // Fin del for de batches
+
+      console.log(`✅ Migración completada: ${result.success} exitosos, ${result.errors.length} errores, ${result.skipped} omitidos`)
     } catch (error) {
       result.errors.push(`Error general: ${error instanceof Error ? error.message : 'Error desconocido'}`)
     }

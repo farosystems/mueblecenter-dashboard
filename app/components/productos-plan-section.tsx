@@ -368,8 +368,8 @@ export function ProductosPlanSection({
                 <TableRow key={item.id}>
                   <TableCell>{item.id}</TableCell>
                   <TableCell className="font-medium">
-                    {getProductoNombre(item.fk_id_producto)}
-                    {producto?.destacado && (
+                    {item.producto?.descripcion || producto?.descripcion || getProductoNombre(item.fk_id_producto)}
+                    {(item.producto?.destacado || producto?.destacado) && (
                       <span className="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">
                         ⭐ Destacado
                       </span>
