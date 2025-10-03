@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria, StockSucursal, Presentacion, Linea, Tipo } from '@/lib/supabase'
+import { supabase, Producto, PlanFinanciacion, ProductoPlan, ProductoPlanDefault, Categoria, Marca, Zona, Configuracion, ConfiguracionZona, ConfiguracionWeb, PlanCategoria, StockSucursal, Presentacion, Linea, Tipo, ProductoDestacadoZona } from '@/lib/supabase'
 import { testSupabaseConnection } from '@/lib/supabase-debug'
 import { setupSupabaseAuth } from '@/lib/supabase-auth'
 import { useUser } from '@clerk/nextjs'
@@ -20,40 +20,15 @@ export function useSupabaseData() {
   const [tipos, setTipos] = useState<Tipo[]>([])
   const [zonas, setZonas] = useState<Zona[]>([])
   const [stockSucursales, setStockSucursales] = useState<StockSucursal[]>([])
+  const [productosDestacadosZona, setProductosDestacadosZona] = useState<ProductoDestacadoZona[]>([])
   const [configuracion, setConfiguracion] = useState<Configuracion | null>(null)
   const [configuracionZonas, setConfiguracionZonas] = useState<ConfiguracionZona[]>([])
   const [configuracionWeb, setConfiguracionWeb] = useState<ConfiguracionWeb | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Cargar productos iniciales (solo primeros 100 para carga rápida)
-  const loadProductos = async (limit: number = 100) => {
-    try {
-      console.log(`🚀 Carga rápida: primeros ${limit} productos`)
-      const { data, error } = await supabase
-        .from('productos')
-        .select(`
-          *,
-          categoria:fk_id_categoria(*),
-          marca:fk_id_marca(*),
-          presentacion:presentacion_id(*),
-          linea:linea_id(*),
-          tipo:tipo_id(*)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) throw error
-      console.log(`✅ Productos cargados: ${data?.length || 0}`)
-      setProductos(data || [])
-    } catch (err) {
-      setError('Error al cargar productos')
-      console.error('Error loading productos:', err)
-    }
-  }
-
-  // Cargar TODOS los productos cuando sea necesario (para búsquedas globales)
-  const loadAllProductos = async () => {
+  // Cargar TODOS los productos en lotes
+  const loadProductos = async () => {
     try {
       let allData: any[] = []
       let from = 0
@@ -95,8 +70,8 @@ export function useSupabaseData() {
       setProductos(allData)
       return allData
     } catch (err) {
-      setError('Error al cargar todos los productos')
-      console.error('Error loading all productos:', err)
+      setError('Error al cargar productos')
+      console.error('Error loading productos:', err)
       return []
     }
   }
@@ -341,6 +316,26 @@ export function useSupabaseData() {
     } catch (err) {
       setError('Error al cargar stock por sucursales')
       console.error('Error loading stock_sucursales:', err)
+    }
+  }
+
+  // Cargar productos destacados por zona
+  const loadProductosDestacadosZona = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('productos_destacados_zona')
+        .select(`
+          *,
+          producto:fk_id_producto(*),
+          zona:fk_id_zona(*)
+        `)
+        .order('orden', { ascending: true })
+
+      if (error) throw error
+      setProductosDestacadosZona(data || [])
+    } catch (err) {
+      setError('Error al cargar productos destacados por zona')
+      console.error('Error loading productos_destacados_zona:', err)
     }
   }
 
@@ -1535,6 +1530,7 @@ export function useSupabaseData() {
             loadTipos(),
             loadZonas(),
             loadStockSucursales(),
+            loadProductosDestacadosZona(),
             loadConfiguracion(),
             loadConfiguracionZonas(),
             loadConfiguracionWeb()
@@ -1556,6 +1552,7 @@ export function useSupabaseData() {
     tipos,
     zonas,
     stockSucursales,
+    productosDestacadosZona,
     configuracionZonas,
     loading,
     error,
@@ -1604,7 +1601,6 @@ export function useSupabaseData() {
     updateConfiguracion,
     configuracionWeb,
     updateConfiguracionWeb,
-    loadAllProductos, // Nueva función para cargar todos los productos
     refreshData: () => {
       setLoading(true)
       Promise.all([
@@ -1620,6 +1616,7 @@ export function useSupabaseData() {
         loadTipos(),
         loadZonas(),
         loadStockSucursales(),
+        loadProductosDestacadosZona(),
         loadConfiguracion(),
         loadConfiguracionZonas(),
         loadConfiguracionWeb()

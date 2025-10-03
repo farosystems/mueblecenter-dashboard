@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight, Layers, GitBranch, Grid3x3 } from "lucide-react"
+import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight, Layers, GitBranch, Grid3x3, Star } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -63,6 +63,11 @@ const menuItems = [
     title: "Stock por Sucursales",
     icon: Warehouse,
     url: "#stock-sucursales",
+  },
+  {
+    title: "Destacados por Zona",
+    icon: Star,
+    url: "#productos-destacados-zona",
   },
   {
     title: "Planes de Financiación",

@@ -28,7 +28,6 @@ interface ProductosSectionProps {
   onCreateProducto: (producto: Omit<Producto, 'id' | 'created_at' | 'categoria' | 'marca'>) => Promise<Producto | undefined>
   onUpdateProducto: (id: number, producto: Partial<Producto>) => Promise<Producto | undefined>
   onDeleteProducto: (id: number) => Promise<void>
-  loadAllProductos?: () => Promise<any[]>
 }
 
 export const ProductosSection = React.memo(({
@@ -40,8 +39,7 @@ export const ProductosSection = React.memo(({
   tipos,
   onCreateProducto,
   onUpdateProducto,
-  onDeleteProducto,
-  loadAllProductos
+  onDeleteProducto
 }: ProductosSectionProps) => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -234,19 +232,6 @@ export const ProductosSection = React.memo(({
                 <SelectItem value="all">Todos</SelectItem>
               </SelectContent>
             </Select>
-
-            {loadAllProductos && productos.length < 1000 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  await loadAllProductos()
-                }}
-                className="h-8 text-xs"
-              >
-                🔄 Cargar Todos
-              </Button>
-            )}
           </div>
         </div>
         

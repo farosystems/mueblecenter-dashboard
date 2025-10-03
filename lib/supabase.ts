@@ -209,4 +209,16 @@ export interface ConfiguracionAgente {
   activa: boolean
   created_at: string
   updated_at: string
+}
+
+// Tipo para productos destacados por zona
+export interface ProductoDestacadoZona {
+  id: number
+  created_at: string
+  fk_id_producto: number
+  fk_id_zona: number
+  orden: number
+  activo: boolean
+  producto?: Producto
+  zona?: Zona
 } 

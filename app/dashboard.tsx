@@ -8,6 +8,7 @@ import { CategoriasSection } from "./components/categorias-section"
 import { MarcasSection } from "./components/marcas-section"
 import { ZonasSection } from "./components/zonas-section"
 import { StockSucursalesSection } from "./components/stock-sucursales-section"
+import { ProductosDestacadosZonaSection } from "./components/productos-destacados-zona-section"
 import { PlanesSection } from "./components/planes-section"
 import { ProductosPlanSection } from "./components/productos-plan-section"
 import { ProductosPlanesSection } from "./components/productos-planes-section"
@@ -37,10 +38,10 @@ import {
 function Dashboard() {
   const { user, isLoaded } = useUser()
   const [activeSection, setActiveSection] = useState("dashboard")
-  const { 
-    productos, 
-    planes, 
-    productosPorPlan, 
+  const {
+    productos,
+    planes,
+    productosPorPlan,
     productosPorPlanDefault,
     categorias,
     marcas,
@@ -49,10 +50,11 @@ function Dashboard() {
     tipos,
     zonas,
     stockSucursales,
+    productosDestacadosZona,
     configuracion,
     configuracionZonas,
     configuracionWeb,
-    loading, 
+    loading,
     error,
     createProducto,
     updateProducto,
@@ -96,7 +98,6 @@ function Dashboard() {
     getCategoriasDePlan,
     updateConfiguracion,
     updateConfiguracionWeb,
-    loadAllProductos,
     refreshData
   } = useSupabaseData()
 
@@ -213,7 +214,6 @@ function Dashboard() {
             onCreateProducto={createProducto}
             onUpdateProducto={updateProducto}
             onDeleteProducto={deleteProducto}
-            loadAllProductos={loadAllProductos}
           />
         )
       case "presentaciones":
@@ -275,7 +275,7 @@ function Dashboard() {
         )
       case "stock-sucursales":
         return (
-          <StockSucursalesSection 
+          <StockSucursalesSection
             stockSucursales={stockSucursales}
             productos={productos}
             zonas={zonas}
@@ -283,6 +283,15 @@ function Dashboard() {
             onUpdateStockSucursal={updateStockSucursal}
             onDeleteStockSucursal={deleteStockSucursal}
             onImportStockSucursales={importStockSucursales}
+          />
+        )
+      case "productos-destacados-zona":
+        return (
+          <ProductosDestacadosZonaSection
+            productos={productos}
+            zonas={zonas}
+            productosDestacados={productosDestacadosZona}
+            onRefresh={refreshData}
           />
         )
       case "planes":
