@@ -404,17 +404,26 @@ export function useSupabaseData() {
   const updateProducto = async (id: number, updates: Partial<Producto>) => {
     try {
       console.log('Actualizando producto:', { id, updates })
-      
+
+      // Obtener el producto actual antes de actualizarlo
+      const { data: productoActual, error: fetchError } = await supabase
+        .from('productos')
+        .select('aplica_todos_plan, aplica_solo_categoria, aplica_plan_especial')
+        .eq('id', id)
+        .single()
+
+      if (fetchError) throw fetchError
+
       // Convertir undefined a null para que Supabase limpie los campos
       const updatesForSupabase = Object.fromEntries(
         Object.entries(updates).map(([key, value]) => [
-          key, 
+          key,
           value === undefined ? null : value
         ])
       )
-      
+
       console.log('Updates para Supabase:', updatesForSupabase)
-      
+
       const { data, error } = await supabase
         .from('productos')
         .update(updatesForSupabase)
@@ -422,18 +431,25 @@ export function useSupabaseData() {
         .select()
 
       if (error) throw error
-      
+
       console.log('Producto actualizado exitosamente:', data?.[0])
 
-      // Si se actualizaron los booleanos de asociación, regenerar asociaciones por defecto
-      const hasAssociationChanges = updates.aplica_todos_plan !== undefined || 
-                                   updates.aplica_solo_categoria !== undefined || 
-                                   updates.aplica_plan_especial !== undefined
+      // Verificar si realmente cambiaron los booleanos de asociación comparando con el producto original
+      const hasAssociationChanges =
+        (updates.aplica_todos_plan !== undefined && updates.aplica_todos_plan !== productoActual.aplica_todos_plan) ||
+        (updates.aplica_solo_categoria !== undefined && updates.aplica_solo_categoria !== productoActual.aplica_solo_categoria) ||
+        (updates.aplica_plan_especial !== undefined && updates.aplica_plan_especial !== productoActual.aplica_plan_especial)
 
       if (hasAssociationChanges && data?.[0]) {
         const productoActualizado = data[0] as Producto
-        console.log('Cambios en asociaciones detectados, regenerando asociaciones por defecto para producto:', productoActualizado.id)
-        
+        console.log('Cambios REALES en asociaciones detectados, regenerando asociaciones por defecto para producto:', productoActualizado.id)
+        console.log('Valores anteriores:', productoActual)
+        console.log('Valores nuevos:', {
+          aplica_todos_plan: productoActualizado.aplica_todos_plan,
+          aplica_solo_categoria: productoActualizado.aplica_solo_categoria,
+          aplica_plan_especial: productoActualizado.aplica_plan_especial
+        })
+
         try {
           // Eliminar asociaciones por defecto existentes para este producto
           const { error: deleteError } = await supabase
@@ -457,6 +473,8 @@ export function useSupabaseData() {
           console.error('Error regenerando asociaciones automáticas:', associationError)
           // No lanzar el error para no fallar la actualización del producto
         }
+      } else {
+        console.log('No hay cambios reales en los booleanos de asociación, no se regeneran asociaciones')
       }
 
       await loadProductos()
