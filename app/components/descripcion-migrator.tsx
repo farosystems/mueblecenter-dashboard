@@ -16,7 +16,7 @@ interface DescripcionMigratorProps {
 }
 
 interface MigrationRow {
-  id?: number
+  codigo?: string
   descripcion?: string
   descripcion_detallada?: string
 }
@@ -51,18 +51,18 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
         const value = values[index]
         if (value && value.length > 0) {
           const lowerHeader = header.toLowerCase()
-          if (lowerHeader === 'id' || lowerHeader === 'producto_id') {
-            row.id = parseInt(value)
+          if (lowerHeader === 'codigo' || lowerHeader === 'código' || lowerHeader === 'cod') {
+            row.codigo = value.trim()
           } else if (lowerHeader === 'descripcion' || lowerHeader === 'descripción') {
             row.descripcion = value
-          } else if (lowerHeader === 'descripcion_detallada' || lowerHeader === 'descripción_detallada' || 
+          } else if (lowerHeader === 'descripcion_detallada' || lowerHeader === 'descripción_detallada' ||
                     lowerHeader === 'descripcion detallada' || lowerHeader === 'descripción detallada') {
             row.descripcion_detallada = value
           }
         }
       })
 
-      if (row.id || row.descripcion) {
+      if (row.codigo || row.descripcion) {
         rows.push(row)
       }
     }
@@ -97,18 +97,18 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
               const value = values[index]
               if (value !== undefined && value !== null && String(value).trim().length > 0) {
                 const cleanValue = String(value).trim()
-                if (header === 'id' || header === 'producto_id') {
-                  row.id = parseInt(cleanValue)
+                if (header === 'codigo' || header === 'código' || header === 'cod') {
+                  row.codigo = cleanValue
                 } else if (header === 'descripcion' || header === 'descripción') {
                   row.descripcion = cleanValue
-                } else if (header === 'descripcion_detallada' || header === 'descripción_detallada' || 
+                } else if (header === 'descripcion_detallada' || header === 'descripción_detallada' ||
                           header === 'descripcion detallada' || header === 'descripción detallada') {
                   row.descripcion_detallada = cleanValue
                 }
               }
             })
 
-            if (row.id || row.descripcion) {
+            if (row.codigo || row.descripcion) {
               rows.push(row)
             }
           }
@@ -180,16 +180,16 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
       try {
         let producto: Producto | undefined
 
-        // Buscar producto por ID o por descripción
-        if (row.id) {
-          producto = productos.find(p => p.id === row.id)
+        // Buscar producto por código o por descripción
+        if (row.codigo) {
+          producto = productos.find(p => p.codigo?.toLowerCase().trim() === row.codigo?.toLowerCase().trim())
         } else if (row.descripcion) {
           producto = productos.find(p => p.descripcion?.toLowerCase().trim() === row.descripcion?.toLowerCase().trim())
         }
 
         if (!producto) {
           results.errors++
-          results.details.push(`Fila ${i + 2}: Producto no encontrado (ID: ${row.id || 'N/A'}, Descripción: "${row.descripcion || 'N/A'}")`)
+          results.details.push(`Fila ${i + 2}: Producto no encontrado (Código: ${row.codigo || 'N/A'}, Descripción: "${row.descripcion || 'N/A'}")`)
           continue
         }
 
@@ -206,10 +206,10 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
 
         if (updated) {
           results.success++
-          results.details.push(`✅ Producto ID ${producto.id}: Descripción detallada actualizada`)
+          results.details.push(`✅ Producto ${producto.codigo || producto.id}: Descripción detallada actualizada`)
         } else {
           results.errors++
-          results.details.push(`❌ Error al actualizar producto ID ${producto.id}`)
+          results.details.push(`❌ Error al actualizar producto ${producto.codigo || producto.id}`)
         }
 
       } catch (error) {
@@ -267,13 +267,13 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
             <AlertDescription>
               Sube un archivo CSV o XLSX con las siguientes columnas:
               <br />
-              <strong>• id</strong> (opcional): ID del producto
+              <strong>• codigo</strong> (opcional): Código del producto
               <br />
               <strong>• descripcion</strong> (opcional): Descripción del producto para buscar por nombre
               <br />
               <strong>• descripcion_detallada</strong>: Nueva descripción detallada
               <br /><br />
-              <em>Nota: Debe incluir al menos 'id' o 'descripcion' para identificar el producto.</em>
+              <em>Nota: Debe incluir al menos 'codigo' o 'descripcion' para identificar el producto.</em>
             </AlertDescription>
           </Alert>
 
@@ -318,7 +318,7 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción Detallada</th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
@@ -326,14 +326,14 @@ export function DescripcionMigrator({ productos, onUpdateProducto }: Descripcion
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {previewData.map((row, index) => {
-                        const producto = row.id 
-                          ? productos.find(p => p.id === row.id)
+                        const producto = row.codigo
+                          ? productos.find(p => p.codigo?.toLowerCase().trim() === row.codigo?.toLowerCase().trim())
                           : productos.find(p => p.descripcion?.toLowerCase().trim() === row.descripcion?.toLowerCase().trim())
-                        
+
                         return (
                           <tr key={index}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {row.id || '-'}
+                              {row.codigo || '-'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {row.descripcion || '-'}
