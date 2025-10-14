@@ -126,29 +126,6 @@ export const ImageMigratorByCode: React.FC<ImageMigratorByCodeProps> = ({
         return
       }
 
-      // Verificar que el producto no tenga imágenes
-      console.log(`🔍 Verificando imágenes del producto ${parsed.codigo}:`, {
-        imagen: producto.imagen,
-        imagen_2: producto.imagen_2,
-        imagen_3: producto.imagen_3,
-        imagen_4: producto.imagen_4,
-        imagen_5: producto.imagen_5
-      })
-
-      if (!hasNoImages(producto)) {
-        console.log(`❌ Producto ${parsed.codigo} tiene imágenes, rechazando`)
-        newImageFiles.push({
-          file,
-          codigo: parsed.codigo,
-          imageNumber: parsed.imageNumber,
-          status: 'error',
-          message: 'El producto ya tiene imágenes cargadas',
-          producto
-        })
-        return
-      }
-
-      console.log(`✅ Producto ${parsed.codigo} no tiene imágenes, aceptando`)
 
       // Verificar que no se excedan las 5 imágenes por producto
       if (!imagesByProduct.has(parsed.codigo)) {
@@ -335,7 +312,7 @@ export const ImageMigratorByCode: React.FC<ImageMigratorByCodeProps> = ({
           <br />
           Números válidos: 1-5 (máximo 5 imágenes por producto)
           <br />
-          Solo se migrarán productos sin imágenes existentes.
+          Las imágenes nuevas reemplazarán las existentes en la misma posición.
         </p>
       </CardHeader>
 
