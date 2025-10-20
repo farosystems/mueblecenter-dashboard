@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
 import { ProductSearch } from "./product-search"
 import type { Producto, PlanFinanciacion, ProductoPlan } from "@/lib/supabase"
 
@@ -42,6 +43,7 @@ export function ProductosPlanSection({
     planId: "",
     activo: true,
     destacado: false,
+    precio_promo: "",
   })
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
 
@@ -51,6 +53,7 @@ export function ProductosPlanSection({
       planId: "",
       activo: true,
       destacado: false,
+      precio_promo: "",
     })
     setSelectedProduct(null)
     setEditingItem(null)
@@ -89,6 +92,7 @@ export function ProductosPlanSection({
       fk_id_plan: Number.parseInt(formData.planId),
       activo: formData.activo,
       destacado: formData.destacado,
+      precio_promo: formData.precio_promo ? parseFloat(formData.precio_promo) : null,
     }
 
     try {
@@ -119,6 +123,7 @@ export function ProductosPlanSection({
       planId: item.fk_id_plan.toString(),
       activo: item.activo,
       destacado: item.destacado && !producto?.destacado, // Solo permitir destacado si el producto no lo está ya
+      precio_promo: item.precio_promo ? item.precio_promo.toString() : "",
     })
     setIsDialogOpen(true)
   }
@@ -301,6 +306,29 @@ export function ProductosPlanSection({
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="precio_promo">Precio Promocional (opcional)</Label>
+                <Input
+                  id="precio_promo"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="Ingrese precio promocional"
+                  value={formData.precio_promo}
+                  onChange={(e) => setFormData({ ...formData, precio_promo: e.target.value })}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedProduct ? (
+                    formData.precio_promo ? (
+                      <>Precio normal: {formatPrice(selectedProduct.precio)} | Promo: {formatPrice(parseFloat(formData.precio_promo))}</>
+                    ) : (
+                      <>Precio normal: {formatPrice(selectedProduct.precio)}</>
+                    )
+                  ) : (
+                    "Si se especifica, se usará este precio en lugar del precio normal del producto"
+                  )}
+                </p>
+              </div>
               <div className="flex items-center space-x-2">
                 <Switch
                   id="activo"
@@ -351,6 +379,7 @@ export function ProductosPlanSection({
               <TableHead>Producto</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Precio Original</TableHead>
+              <TableHead>Precio Promo</TableHead>
               <TableHead>Anticipo</TableHead>
               <TableHead>Cuota Mensual</TableHead>
               <TableHead>Estado</TableHead>
@@ -362,8 +391,9 @@ export function ProductosPlanSection({
             {productosPorPlan.map((item) => {
               const producto = productos.find(p => p.id === item.fk_id_producto)
               const plan = planes.find(p => p.id === item.fk_id_plan)
-              const detalles = plan && producto ? calcularDetallesFinanciacion(producto.precio, plan.cuotas, plan.recargo_porcentual, plan.recargo_fijo, plan.anticipo_minimo, plan.anticipo_minimo_fijo) : null
-              
+              const precioAUsar = item.precio_promo || producto?.precio || 0
+              const detalles = plan && producto ? calcularDetallesFinanciacion(precioAUsar, plan.cuotas, plan.recargo_porcentual, plan.recargo_fijo, plan.anticipo_minimo, plan.anticipo_minimo_fijo) : null
+
               return (
                 <TableRow key={item.id}>
                   <TableCell>{item.id}</TableCell>
@@ -377,6 +407,18 @@ export function ProductosPlanSection({
                   </TableCell>
                   <TableCell>{getPlanNombre(item.fk_id_plan)}</TableCell>
                   <TableCell>{producto ? formatPrice(producto.precio) : '-'}</TableCell>
+                  <TableCell>
+                    {item.precio_promo ? (
+                      <div className="text-sm">
+                        <div className="font-medium text-green-600">{formatPrice(item.precio_promo)}</div>
+                        <div className="text-xs text-gray-500">
+                          Ahorro: {formatPrice(producto ? producto.precio - item.precio_promo : 0)}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {detalles && detalles.montoAnticipo > 0 ? (
                       <div className="text-sm space-y-1">

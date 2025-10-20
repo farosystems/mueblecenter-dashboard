@@ -122,6 +122,7 @@ export interface ProductoPlan {
   fk_id_plan: number
   activo: boolean
   destacado: boolean
+  precio_promo?: number
   created_at: string
   producto?: Producto
   plan?: PlanFinanciacion

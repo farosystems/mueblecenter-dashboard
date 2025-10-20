@@ -33,11 +33,10 @@ export function ProductosDestacadosZonaSection({
   const [isCreating, setIsCreating] = useState(false)
   const [selectedZonaFilter, setSelectedZonaFilter] = useState<string>("all")
   const [searchProducto, setSearchProducto] = useState("")
-  const [selectedProducto, setSelectedProducto] = useState<Producto | null>(null)
+  const [selectedProductos, setSelectedProductos] = useState<Producto[]>([])
   const [showProductosList, setShowProductosList] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const [formData, setFormData] = useState({
-    fk_id_producto: "",
     fk_id_zona: "",
     orden: "0",
     activo: true
@@ -59,24 +58,22 @@ export function ProductosDestacadosZonaSection({
 
   const resetForm = () => {
     setFormData({
-      fk_id_producto: "",
       fk_id_zona: "",
       orden: "0",
       activo: true
     })
     setEditingItem(null)
     setSearchProducto("")
-    setSelectedProducto(null)
+    setSelectedProductos([])
     setShowProductosList(false)
   }
 
   const handleEdit = (item: ProductoDestacadoZona) => {
     setEditingItem(item)
     const producto = productos.find(p => p.id === item.fk_id_producto)
-    setSelectedProducto(producto || null)
-    setSearchProducto(producto ? (producto.codigo ? `${producto.codigo} - ${producto.descripcion}` : producto.descripcion) : "")
+    setSelectedProductos(producto ? [producto] : [])
+    setSearchProducto("")
     setFormData({
-      fk_id_producto: item.fk_id_producto.toString(),
       fk_id_zona: item.fk_id_zona.toString(),
       orden: item.orden.toString(),
       activo: item.activo
@@ -84,17 +81,17 @@ export function ProductosDestacadosZonaSection({
     setIsDialogOpen(true)
   }
 
-  const handleSelectProducto = (producto: Producto) => {
-    setSelectedProducto(producto)
-    setSearchProducto(producto.codigo ? `${producto.codigo} - ${producto.descripcion}` : producto.descripcion)
-    setFormData({ ...formData, fk_id_producto: producto.id.toString() })
-    setShowProductosList(false)
+  const handleToggleProducto = (producto: Producto) => {
+    const isSelected = selectedProductos.some(p => p.id === producto.id)
+    if (isSelected) {
+      setSelectedProductos(selectedProductos.filter(p => p.id !== producto.id))
+    } else {
+      setSelectedProductos([...selectedProductos, producto])
+    }
   }
 
-  const handleClearProducto = () => {
-    setSelectedProducto(null)
-    setSearchProducto("")
-    setFormData({ ...formData, fk_id_producto: "" })
+  const handleRemoveProducto = (productoId: number) => {
+    setSelectedProductos(selectedProductos.filter(p => p.id !== productoId))
   }
 
   // Filtrar productos por búsqueda
@@ -116,26 +113,37 @@ export function ProductosDestacadosZonaSection({
     e.preventDefault()
 
     // Validaciones
-    if (!formData.fk_id_producto) {
-      alert('Debes seleccionar un producto')
-      return
-    }
     if (!formData.fk_id_zona) {
       alert('Debes seleccionar una zona')
       return
     }
 
+    if (editingItem) {
+      // Modo edición: solo permite un producto
+      if (selectedProductos.length !== 1) {
+        alert('Debes seleccionar un producto')
+        return
+      }
+    } else {
+      // Modo creación: permite múltiples productos
+      if (selectedProductos.length === 0) {
+        alert('Debes seleccionar al menos un producto')
+        return
+      }
+    }
+
     setIsCreating(true)
 
     try {
-      const data = {
-        fk_id_producto: parseInt(formData.fk_id_producto),
-        fk_id_zona: parseInt(formData.fk_id_zona),
-        orden: parseInt(formData.orden),
-        activo: formData.activo
-      }
-
       if (editingItem) {
+        // Modo edición
+        const data = {
+          fk_id_producto: selectedProductos[0].id,
+          fk_id_zona: parseInt(formData.fk_id_zona),
+          orden: parseInt(formData.orden),
+          activo: formData.activo
+        }
+
         const { error } = await supabase
           .from('productos_destacados_zona')
           .update(data)
@@ -143,9 +151,17 @@ export function ProductosDestacadosZonaSection({
 
         if (error) throw error
       } else {
+        // Modo creación: crear un registro por cada producto seleccionado
+        const dataArray = selectedProductos.map((producto, index) => ({
+          fk_id_producto: producto.id,
+          fk_id_zona: parseInt(formData.fk_id_zona),
+          orden: parseInt(formData.orden) + index,
+          activo: formData.activo
+        }))
+
         const { error } = await supabase
           .from('productos_destacados_zona')
-          .insert([data])
+          .insert(dataArray)
 
         if (error) throw error
       }
@@ -156,7 +172,7 @@ export function ProductosDestacadosZonaSection({
     } catch (error: any) {
       console.error('Error al guardar producto destacado:', error)
       if (error.code === '23505') {
-        alert('Este producto ya está destacado en esta zona')
+        alert('Uno o más productos ya están destacados en esta zona')
       } else {
         alert('Error al guardar: ' + error.message)
       }
@@ -270,7 +286,7 @@ export function ProductosDestacadosZonaSection({
                     Nuevo Destacado
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md" showCloseButton={false}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" showCloseButton={false}>
                   <DialogHeader>
                     <DialogTitle>
                       {editingItem ? "Editar Producto Destacado" : "Nuevo Producto Destacado"}
@@ -310,48 +326,64 @@ export function ProductosDestacadosZonaSection({
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="producto">Producto</Label>
+                      <Label htmlFor="producto">
+                        {editingItem ? "Producto" : "Productos"}
+                        {!editingItem && selectedProductos.length > 0 && (
+                          <span className="ml-2 text-sm font-normal text-gray-500">
+                            ({selectedProductos.length} seleccionado{selectedProductos.length > 1 ? 's' : ''})
+                          </span>
+                        )}
+                      </Label>
 
-                      {selectedProducto ? (
-                        <div className="flex items-center gap-2 p-3 border rounded-lg bg-gray-50">
-                          {selectedProducto.imagen && (
-                            <img
-                              src={selectedProducto.imagen}
-                              alt={selectedProducto.descripcion}
-                              className="w-12 h-12 object-cover rounded"
-                            />
-                          )}
-                          <div className="flex-1">
-                            <p className="font-medium text-sm">
-                              {selectedProducto.codigo && (
-                                <span className="text-gray-500 mr-2">{selectedProducto.codigo}</span>
+                      {/* Productos seleccionados */}
+                      {selectedProductos.length > 0 && (
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto border rounded-lg p-2 bg-gray-50">
+                          {selectedProductos.map((producto) => (
+                            <div key={producto.id} className="flex items-center gap-2 p-2 bg-white border rounded min-w-0">
+                              {producto.imagen && (
+                                <img
+                                  src={producto.imagen}
+                                  alt={producto.descripcion}
+                                  className="w-10 h-10 flex-shrink-0 object-cover rounded"
+                                />
                               )}
-                              {selectedProducto.descripcion}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Intl.NumberFormat("es-AR", {
-                                style: "currency",
-                                currency: "ARS",
-                              }).format(selectedProducto.precio)}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleClearProducto}
-                            disabled={isCreating}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
+                              <div className="flex-1 min-w-0 overflow-hidden">
+                                <p className="font-medium text-sm truncate">
+                                  {producto.codigo && (
+                                    <span className="text-gray-500 mr-2">{producto.codigo}</span>
+                                  )}
+                                  {producto.descripcion}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {new Intl.NumberFormat("es-AR", {
+                                    style: "currency",
+                                    currency: "ARS",
+                                  }).format(producto.precio)}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="flex-shrink-0"
+                                onClick={() => handleRemoveProducto(producto.id)}
+                                disabled={isCreating}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
+                      )}
+
+                      {/* Buscador */}
+                      {!editingItem && (
                         <div className="relative" ref={searchRef}>
                           <div className="relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                             <Input
                               id="producto"
-                              placeholder="Buscar producto por código o descripción..."
+                              placeholder="Buscar productos por código o descripción..."
                               value={searchProducto}
                               onChange={(e) => {
                                 setSearchProducto(e.target.value)
@@ -370,36 +402,43 @@ export function ProductosDestacadosZonaSection({
                                   No se encontraron productos
                                 </div>
                               ) : (
-                                filteredProductos.map((producto) => (
-                                  <button
-                                    key={producto.id}
-                                    type="button"
-                                    className="w-full p-3 text-left hover:bg-gray-50 border-b last:border-b-0 flex items-center gap-3"
-                                    onClick={() => handleSelectProducto(producto)}
-                                  >
-                                    {producto.imagen && (
-                                      <img
-                                        src={producto.imagen}
-                                        alt={producto.descripcion}
-                                        className="w-10 h-10 object-cover rounded"
+                                filteredProductos.map((producto) => {
+                                  const isSelected = selectedProductos.some(p => p.id === producto.id)
+                                  return (
+                                    <label
+                                      key={producto.id}
+                                      className="w-full p-3 hover:bg-gray-50 border-b last:border-b-0 flex items-center gap-3 cursor-pointer min-w-0"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => handleToggleProducto(producto)}
+                                        className="w-4 h-4 flex-shrink-0"
                                       />
-                                    )}
-                                    <div className="flex-1">
-                                      <p className="font-medium text-sm">
-                                        {producto.codigo && (
-                                          <span className="text-gray-500 mr-2">{producto.codigo}</span>
-                                        )}
-                                        {producto.descripcion}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        {new Intl.NumberFormat("es-AR", {
-                                          style: "currency",
-                                          currency: "ARS",
-                                        }).format(producto.precio)}
-                                      </p>
-                                    </div>
-                                  </button>
-                                ))
+                                      {producto.imagen && (
+                                        <img
+                                          src={producto.imagen}
+                                          alt={producto.descripcion}
+                                          className="w-10 h-10 flex-shrink-0 object-cover rounded"
+                                        />
+                                      )}
+                                      <div className="flex-1 min-w-0 overflow-hidden">
+                                        <p className="font-medium text-sm truncate">
+                                          {producto.codigo && (
+                                            <span className="text-gray-500 mr-2">{producto.codigo}</span>
+                                          )}
+                                          {producto.descripcion}
+                                        </p>
+                                        <p className="text-xs text-gray-500 truncate">
+                                          {new Intl.NumberFormat("es-AR", {
+                                            style: "currency",
+                                            currency: "ARS",
+                                          }).format(producto.precio)}
+                                        </p>
+                                      </div>
+                                    </label>
+                                  )
+                                })
                               )}
                             </div>
                           )}
@@ -407,12 +446,18 @@ export function ProductosDestacadosZonaSection({
                       )}
 
                       <p className="text-xs text-gray-500">
-                        {selectedProducto ? "Producto seleccionado" : "Busca un producto por código o nombre"}
+                        {editingItem
+                          ? (selectedProductos.length > 0 ? "Producto seleccionado" : "Selecciona un producto")
+                          : (selectedProductos.length > 0
+                              ? `${selectedProductos.length} producto${selectedProductos.length > 1 ? 's' : ''} seleccionado${selectedProductos.length > 1 ? 's' : ''}`
+                              : "Busca y selecciona los productos a destacar"
+                            )
+                        }
                       </p>
                     </div>
 
                     <div>
-                      <Label htmlFor="orden">Orden de visualización</Label>
+                      <Label htmlFor="orden">Orden de visualización inicial</Label>
                       <Input
                         id="orden"
                         type="number"
@@ -422,7 +467,10 @@ export function ProductosDestacadosZonaSection({
                         min="0"
                       />
                       <p className="text-xs text-gray-500 mt-1">
-                        Menor número = mayor prioridad
+                        {editingItem
+                          ? "Menor número = mayor prioridad"
+                          : `Orden inicial (cada producto tendrá +1). Menor número = mayor prioridad`
+                        }
                       </p>
                     </div>
 
@@ -437,7 +485,14 @@ export function ProductosDestacadosZonaSection({
                     </div>
 
                     <Button type="submit" className="w-full" disabled={isCreating}>
-                      {isCreating ? "Guardando..." : editingItem ? "Actualizar" : "Crear"}
+                      {isCreating
+                        ? "Guardando..."
+                        : editingItem
+                          ? "Actualizar"
+                          : selectedProductos.length > 1
+                            ? `Crear ${selectedProductos.length} destacados`
+                            : "Crear destacado"
+                      }
                     </Button>
                   </form>
                 </DialogContent>
