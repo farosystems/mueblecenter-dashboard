@@ -13,33 +13,48 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ProductSearch } from "./product-search"
-import type { Producto, PlanFinanciacion, ProductoPlan } from "@/lib/supabase"
+import type { Producto, PlanFinanciacion, ProductoPlan, Presentacion, Linea, Tipo, Marca } from "@/lib/supabase"
 
 interface ProductosPlanSectionProps {
   productos: Producto[]
   planes: PlanFinanciacion[]
   productosPorPlan: ProductoPlan[]
+  presentaciones: Presentacion[]
+  lineas: Linea[]
+  tipos: Tipo[]
+  marcas: Marca[]
   onCreateProductoPlan: (productoPlan: Omit<ProductoPlan, 'id' | 'created_at' | 'producto' | 'plan'>) => Promise<ProductoPlan | undefined>
   onUpdateProductoPlan: (id: number, updates: Partial<ProductoPlan>) => Promise<ProductoPlan | undefined>
   onDeleteProductoPlan: (id: number) => Promise<void>
   onUpdateProducto: (id: number, updates: Partial<Producto>) => Promise<Producto | undefined>
+  onCreateMultipleProductoPlan: (productoIds: number[], planId: number, activo: boolean, destacado: boolean, precio_promo?: number) => Promise<void>
 }
 
 export function ProductosPlanSection({
   productos,
   planes,
   productosPorPlan,
+  presentaciones,
+  lineas,
+  tipos,
+  marcas,
   onCreateProductoPlan,
   onUpdateProductoPlan,
   onDeleteProductoPlan,
   onUpdateProducto,
+  onCreateMultipleProductoPlan,
 }: ProductosPlanSectionProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [itemToDelete, setItemToDelete] = useState<ProductoPlan | null>(null)
   const [editingItem, setEditingItem] = useState<ProductoPlan | null>(null)
+  const [selectionType, setSelectionType] = useState<"producto" | "presentacion" | "linea" | "tipo" | "marca">("producto")
   const [formData, setFormData] = useState({
     productoId: "",
+    presentacionId: "",
+    lineaId: "",
+    tipoId: "",
+    marcaId: "",
     planId: "",
     activo: true,
     destacado: false,
@@ -50,6 +65,10 @@ export function ProductosPlanSection({
   const resetForm = () => {
     setFormData({
       productoId: "",
+      presentacionId: "",
+      lineaId: "",
+      tipoId: "",
+      marcaId: "",
       planId: "",
       activo: true,
       destacado: false,
@@ -57,6 +76,7 @@ export function ProductosPlanSection({
     })
     setSelectedProduct(null)
     setEditingItem(null)
+    setSelectionType("producto")
   }
 
   const calcularFinanciacion = (precio: number, cuotas: number, interes: number) => {
@@ -71,40 +91,118 @@ export function ProductosPlanSection({
     }
   }
 
+  const getProductosByFilter = () => {
+    switch (selectionType) {
+      case "presentacion":
+        if (!formData.presentacionId) return []
+        return productos.filter(p => p.presentacion_id === formData.presentacionId)
+      case "linea":
+        if (!formData.lineaId) return []
+        return productos.filter(p => p.linea_id === formData.lineaId)
+      case "tipo":
+        if (!formData.tipoId) return []
+        return productos.filter(p => p.tipo_id === formData.tipoId)
+      case "marca":
+        if (!formData.marcaId) return []
+        return productos.filter(p => p.fk_id_marca?.toString() === formData.marcaId)
+      case "producto":
+      default:
+        return selectedProduct ? [selectedProduct] : []
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     const plan = planes.find((p) => p.id.toString() === formData.planId)
 
-    if (!selectedProduct || !plan) {
-      alert("Por favor selecciona un producto y un plan")
+    if (!plan) {
+      alert("Por favor selecciona un plan")
       return
     }
 
-    // Validar que no se intente marcar como destacado un producto que ya lo está
-    if (formData.destacado && selectedProduct.destacado) {
-      alert("Este producto ya está marcado como destacado. No se puede marcar nuevamente.")
+    // Modo edición - solo para productos individuales
+    if (editingItem) {
+      if (!selectedProduct) {
+        alert("Por favor selecciona un producto")
+        return
+      }
+
+      // Validar que no se intente marcar como destacado un producto que ya lo está
+      if (formData.destacado && selectedProduct.destacado) {
+        alert("Este producto ya está marcado como destacado. No se puede marcar nuevamente.")
+        return
+      }
+
+      const itemData = {
+        fk_id_producto: selectedProduct.id,
+        fk_id_plan: Number.parseInt(formData.planId),
+        activo: formData.activo,
+        destacado: formData.destacado,
+        precio_promo: formData.precio_promo ? parseFloat(formData.precio_promo) : null,
+      }
+
+      try {
+        await onUpdateProductoPlan(editingItem.id, itemData)
+
+        // Si se marca como destacado y el producto no lo está ya, actualizar el producto
+        if (formData.destacado && selectedProduct && !selectedProduct.destacado) {
+          await onUpdateProducto(selectedProduct.id, { destacado: true })
+        }
+
+        setIsDialogOpen(false)
+        resetForm()
+      } catch (error) {
+        console.error('Error al actualizar producto por plan:', error)
+      }
       return
     }
 
-    const itemData = {
-      fk_id_producto: selectedProduct.id,
-      fk_id_plan: Number.parseInt(formData.planId),
-      activo: formData.activo,
-      destacado: formData.destacado,
-      precio_promo: formData.precio_promo ? parseFloat(formData.precio_promo) : null,
+    // Modo creación - puede ser individual o múltiple
+    const productosToAssociate = getProductosByFilter()
+
+    if (productosToAssociate.length === 0) {
+      alert("Por favor selecciona al menos un producto o filtro válido")
+      return
     }
 
     try {
-      if (editingItem) {
-        await onUpdateProductoPlan(editingItem.id, itemData)
-      } else {
-        await onCreateProductoPlan(itemData)
-      }
+      if (selectionType === "producto") {
+        // Asociación individual
+        const producto = productosToAssociate[0]
 
-      // Si se marca como destacado y el producto no lo está ya, actualizar el producto
-      if (formData.destacado && selectedProduct && !selectedProduct.destacado) {
-        await onUpdateProducto(selectedProduct.id, { destacado: true })
+        // Validar que no se intente marcar como destacado un producto que ya lo está
+        if (formData.destacado && producto.destacado) {
+          alert("Este producto ya está marcado como destacado. No se puede marcar nuevamente.")
+          return
+        }
+
+        const itemData = {
+          fk_id_producto: producto.id,
+          fk_id_plan: Number.parseInt(formData.planId),
+          activo: formData.activo,
+          destacado: formData.destacado,
+          precio_promo: formData.precio_promo ? parseFloat(formData.precio_promo) : null,
+        }
+
+        await onCreateProductoPlan(itemData)
+
+        // Si se marca como destacado y el producto no lo está ya, actualizar el producto
+        if (formData.destacado && producto && !producto.destacado) {
+          await onUpdateProducto(producto.id, { destacado: true })
+        }
+      } else {
+        // Asociación múltiple
+        const productoIds = productosToAssociate.map(p => p.id)
+        await onCreateMultipleProductoPlan(
+          productoIds,
+          Number.parseInt(formData.planId),
+          formData.activo,
+          formData.destacado,
+          formData.precio_promo ? parseFloat(formData.precio_promo) : undefined
+        )
+
+        alert(`Se asociaron ${productoIds.length} productos al plan seleccionado`)
       }
 
       setIsDialogOpen(false)
@@ -261,8 +359,8 @@ export function ProductosPlanSection({
                       Nueva Asociación
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md" showCloseButton={false}>
-                    <DialogHeader>
+                  <DialogContent className="max-w-4xl w-[90vw] p-6" showCloseButton={false}>
+                    <DialogHeader className="mb-4">
                       <DialogTitle>{editingItem ? "Editar Asociación" : "Nueva Asociación"}</DialogTitle>
                       <Button
                         variant="ghost"
@@ -276,23 +374,141 @@ export function ProductosPlanSection({
                         ✕
                       </Button>
                     </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="producto">Producto</Label>
-                <ProductSearch
-                  productos={productos}
-                  onSelect={(producto) => {
-                    setSelectedProduct(producto)
-                    setFormData({ ...formData, productoId: producto?.id.toString() || "" })
-                  }}
-                  placeholder="Buscar producto por nombre o ID..."
-                  selectedProduct={selectedProduct}
-                />
-              </div>
+            <form onSubmit={handleSubmit} className="space-y-4 pb-2">
+              {!editingItem && (
+                <div>
+                  <Label htmlFor="selectionType">Tipo de Selección</Label>
+                  <Select value={selectionType} onValueChange={(value: any) => setSelectionType(value)}>
+                    <SelectTrigger className="max-w-full">
+                      <SelectValue placeholder="Seleccionar tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="producto">Producto Individual</SelectItem>
+                      <SelectItem value="presentacion">Por Presentación</SelectItem>
+                      <SelectItem value="linea">Por Línea</SelectItem>
+                      <SelectItem value="tipo">Por Tipo</SelectItem>
+                      <SelectItem value="marca">Por Marca</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {selectionType === "producto" && (
+                <div>
+                  <Label htmlFor="producto">Producto</Label>
+                  <ProductSearch
+                    productos={productos}
+                    onSelect={(producto) => {
+                      setSelectedProduct(producto)
+                      setFormData({ ...formData, productoId: producto?.id.toString() || "" })
+                    }}
+                    placeholder="Buscar producto por nombre o ID..."
+                    selectedProduct={selectedProduct}
+                  />
+                </div>
+              )}
+
+              {selectionType === "presentacion" && (
+                <div>
+                  <Label htmlFor="presentacion">Presentación</Label>
+                  <Select value={formData.presentacionId} onValueChange={(value) => setFormData({ ...formData, presentacionId: value })}>
+                    <SelectTrigger className="max-w-full">
+                      <SelectValue placeholder="Seleccionar presentación" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {presentaciones
+                        .filter((p) => p.activo)
+                        .map((presentacion) => (
+                          <SelectItem key={presentacion.id} value={presentacion.id}>
+                            {presentacion.nombre}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.presentacionId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se asociarán {productos.filter(p => p.presentacion_id === formData.presentacionId).length} productos
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectionType === "linea" && (
+                <div>
+                  <Label htmlFor="linea">Línea</Label>
+                  <Select value={formData.lineaId} onValueChange={(value) => setFormData({ ...formData, lineaId: value })}>
+                    <SelectTrigger className="max-w-full">
+                      <SelectValue placeholder="Seleccionar línea" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {lineas
+                        .filter((l) => l.activo)
+                        .map((linea) => (
+                          <SelectItem key={linea.id} value={linea.id}>
+                            {linea.nombre} {linea.presentacion ? `(${linea.presentacion.nombre})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.lineaId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se asociarán {productos.filter(p => p.linea_id === formData.lineaId).length} productos
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectionType === "tipo" && (
+                <div>
+                  <Label htmlFor="tipo">Tipo</Label>
+                  <Select value={formData.tipoId} onValueChange={(value) => setFormData({ ...formData, tipoId: value })}>
+                    <SelectTrigger className="max-w-full">
+                      <SelectValue placeholder="Seleccionar tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tipos
+                        .filter((t) => t.activo)
+                        .map((tipo) => (
+                          <SelectItem key={tipo.id} value={tipo.id}>
+                            {tipo.nombre} {tipo.linea?.presentacion ? `(${tipo.linea.presentacion.nombre} - ${tipo.linea.nombre})` : ''}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.tipoId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se asociarán {productos.filter(p => p.tipo_id === formData.tipoId).length} productos
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {selectionType === "marca" && (
+                <div>
+                  <Label htmlFor="marca">Marca</Label>
+                  <Select value={formData.marcaId} onValueChange={(value) => setFormData({ ...formData, marcaId: value })}>
+                    <SelectTrigger className="max-w-full">
+                      <SelectValue placeholder="Seleccionar marca" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marcas.map((marca) => (
+                        <SelectItem key={marca.id} value={marca.id.toString()}>
+                          {marca.descripcion}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.marcaId && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Se asociarán {productos.filter(p => p.fk_id_marca?.toString() === formData.marcaId).length} productos
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <Label htmlFor="plan">Plan de Financiación</Label>
                 <Select value={formData.planId} onValueChange={(value) => setFormData({ ...formData, planId: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full max-w-md">
                     <SelectValue placeholder="Seleccionar plan" />
                   </SelectTrigger>
                   <SelectContent>
@@ -316,6 +532,7 @@ export function ProductosPlanSection({
                   placeholder="Ingrese precio promocional"
                   value={formData.precio_promo}
                   onChange={(e) => setFormData({ ...formData, precio_promo: e.target.value })}
+                  className="w-full max-w-md"
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   {selectedProduct ? (
@@ -364,9 +581,11 @@ export function ProductosPlanSection({
                   </p>
                 </div>
               )}
-              <Button type="submit" className="w-full">
-                {editingItem ? "Actualizar" : "Crear"} Asociación
-              </Button>
+              <div className="pt-2 flex justify-center">
+                <Button type="submit" className="w-auto px-8">
+                  {editingItem ? "Actualizar" : "Crear"} Asociación
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>

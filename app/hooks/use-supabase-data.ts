@@ -1177,6 +1177,34 @@ export function useSupabaseData() {
     }
   }
 
+  // Crear múltiples productos por plan
+  const createMultipleProductoPlan = async (productoIds: number[], planId: number, activo: boolean, destacado: boolean, precio_promo?: number) => {
+    try {
+      // Crear un array de asociaciones
+      const associations = productoIds.map(productoId => ({
+        fk_id_producto: productoId,
+        fk_id_plan: planId,
+        activo,
+        destacado,
+        precio_promo: precio_promo || null,
+      }))
+
+      // Insertar todas las asociaciones de una vez
+      const { data, error } = await supabase
+        .from('producto_planes')
+        .insert(associations)
+        .select()
+
+      if (error) throw error
+      await loadProductosPorPlan()
+      console.log(`✅ Se crearon ${data?.length || 0} asociaciones de productos por plan`)
+    } catch (err) {
+      setError('Error al crear múltiples productos por plan')
+      console.error('Error creating multiple producto_plan:', err)
+      throw err
+    }
+  }
+
   // Actualizar producto por plan
   const updateProductoPlan = async (id: number, updates: Partial<ProductoPlan>) => {
     try {
@@ -1608,6 +1636,7 @@ export function useSupabaseData() {
     updateConfiguracionZona,
     deleteConfiguracionZona,
     createProductoPlan,
+    createMultipleProductoPlan,
     updateProductoPlan,
     deleteProductoPlan,
     createProductoPlanDefault,

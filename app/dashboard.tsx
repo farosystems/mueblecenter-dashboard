@@ -90,6 +90,7 @@ function Dashboard() {
     deletePlan,
     syncPlanAssociationsStatus,
     createProductoPlan,
+    createMultipleProductoPlan,
     updateProductoPlan,
     deleteProductoPlan,
     createProductoPlanDefault,
@@ -312,7 +313,12 @@ function Dashboard() {
             productos={productos}
             planes={planes}
             productosPorPlan={productosPorPlan}
+            presentaciones={presentaciones}
+            lineas={lineas}
+            tipos={tipos}
+            marcas={marcas}
             onCreateProductoPlan={createProductoPlan}
+            onCreateMultipleProductoPlan={createMultipleProductoPlan}
             onUpdateProductoPlan={updateProductoPlan}
             onDeleteProductoPlan={deleteProductoPlan}
             onUpdateProducto={updateProducto}
