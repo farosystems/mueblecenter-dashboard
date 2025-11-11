@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { ProductoPlanDefault, Producto, PlanFinanciacion } from "@/lib/supabase"
+import { ProductSearch } from "./product-search"
+import { PlanSearch } from "./plan-search"
 
 interface ProductosPlanesSectionProps {
   productosPlanesDefault: ProductoPlanDefault[]
@@ -46,6 +48,8 @@ export const ProductosPlanesSection = React.memo(({
     fk_id_plan: undefined as string | undefined,
     activo: true
   })
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<PlanFinanciacion | null>(null)
 
   const resetForm = () => {
     setFormData({
@@ -53,11 +57,17 @@ export const ProductosPlanesSection = React.memo(({
       fk_id_plan: undefined,
       activo: true
     })
+    setSelectedProduct(null)
+    setSelectedPlan(null)
     setEditingProductoPlanDefault(null)
   }
 
   const handleEdit = (productoPlanDefault: ProductoPlanDefault) => {
+    const producto = productos.find(p => p.id === productoPlanDefault.fk_id_producto)
+    const plan = planes.find(p => p.id === productoPlanDefault.fk_id_plan)
     setEditingProductoPlanDefault(productoPlanDefault)
+    setSelectedProduct(producto || null)
+    setSelectedPlan(plan || null)
     setFormData({
       fk_id_producto: productoPlanDefault.fk_id_producto.toString(),
       fk_id_plan: productoPlanDefault.fk_id_plan.toString(),
@@ -186,41 +196,27 @@ export const ProductosPlanesSection = React.memo(({
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="producto">Producto</Label>
-                  <Select
-                    value={formData.fk_id_producto}
-                    onValueChange={(value) => setFormData({ ...formData, fk_id_producto: value })}
-                    disabled={isCreating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar producto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productos.map((producto) => (
-                        <SelectItem key={producto.id} value={producto.id.toString()}>
-                          {producto.descripcion}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ProductSearch
+                    productos={productos}
+                    onSelect={(producto) => {
+                      setSelectedProduct(producto)
+                      setFormData({ ...formData, fk_id_producto: producto?.id.toString() || undefined })
+                    }}
+                    placeholder="Buscar producto por nombre o ID..."
+                    selectedProduct={selectedProduct}
+                  />
                 </div>
                 <div>
                   <Label htmlFor="plan">Plan</Label>
-                  <Select
-                    value={formData.fk_id_plan}
-                    onValueChange={(value) => setFormData({ ...formData, fk_id_plan: value })}
-                    disabled={isCreating}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {planes.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id.toString()}>
-                          {plan.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <PlanSearch
+                    planes={planes}
+                    onSelect={(plan) => {
+                      setSelectedPlan(plan)
+                      setFormData({ ...formData, fk_id_plan: plan?.id.toString() || undefined })
+                    }}
+                    placeholder="Buscar plan por nombre o cuotas..."
+                    selectedPlan={selectedPlan}
+                  />
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch

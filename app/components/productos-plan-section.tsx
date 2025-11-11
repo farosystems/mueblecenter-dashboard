@@ -13,6 +13,7 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { ProductSearch } from "./product-search"
+import { PlanSearch } from "./plan-search"
 import type { Producto, PlanFinanciacion, ProductoPlan, Presentacion, Linea, Tipo, Marca } from "@/lib/supabase"
 
 interface ProductosPlanSectionProps {
@@ -61,6 +62,7 @@ export function ProductosPlanSection({
     precio_promo: "",
   })
   const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<PlanFinanciacion | null>(null)
 
   const resetForm = () => {
     setFormData({
@@ -75,6 +77,7 @@ export function ProductosPlanSection({
       precio_promo: "",
     })
     setSelectedProduct(null)
+    setSelectedPlan(null)
     setEditingItem(null)
     setSelectionType("producto")
   }
@@ -214,14 +217,20 @@ export function ProductosPlanSection({
 
   const handleEdit = (item: ProductoPlan) => {
     const producto = productos.find(p => p.id === item.fk_id_producto)
+    const plan = planes.find(p => p.id === item.fk_id_plan)
     setEditingItem(item)
     setSelectedProduct(producto || null)
+    setSelectedPlan(plan || null)
     setFormData({
       productoId: item.fk_id_producto.toString(),
       planId: item.fk_id_plan.toString(),
       activo: item.activo,
       destacado: item.destacado && !producto?.destacado, // Solo permitir destacado si el producto no lo está ya
       precio_promo: item.precio_promo ? item.precio_promo.toString() : "",
+      presentacionId: "",
+      lineaId: "",
+      tipoId: "",
+      marcaId: "",
     })
     setIsDialogOpen(true)
   }
@@ -507,20 +516,15 @@ export function ProductosPlanSection({
               )}
               <div>
                 <Label htmlFor="plan">Plan de Financiación</Label>
-                <Select value={formData.planId} onValueChange={(value) => setFormData({ ...formData, planId: value })}>
-                  <SelectTrigger className="w-full max-w-md">
-                    <SelectValue placeholder="Seleccionar plan" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {planes
-                      .filter((p) => p.activo)
-                      .map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id.toString()}>
-                          {plan.nombre} - {plan.cuotas} cuotas ({plan.recargo_porcentual}% + ${plan.recargo_fijo})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                <PlanSearch
+                  planes={planes}
+                  onSelect={(plan) => {
+                    setSelectedPlan(plan)
+                    setFormData({ ...formData, planId: plan?.id.toString() || "" })
+                  }}
+                  placeholder="Buscar plan por nombre o cuotas..."
+                  selectedPlan={selectedPlan}
+                />
               </div>
               <div>
                 <Label htmlFor="precio_promo">Precio Promocional (opcional)</Label>
