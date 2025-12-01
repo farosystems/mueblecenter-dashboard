@@ -74,7 +74,7 @@ export function ProductosDestacadosZonaSection({
     setSelectedProductos(producto ? [producto] : [])
     setSearchProducto("")
     setFormData({
-      fk_id_zona: item.fk_id_zona.toString(),
+      fk_id_zona: item.fk_id_zona ? item.fk_id_zona.toString() : "all",
       orden: item.orden.toString(),
       activo: item.activo
     })
@@ -139,7 +139,7 @@ export function ProductosDestacadosZonaSection({
         // Modo edición
         const data = {
           fk_id_producto: selectedProductos[0].id,
-          fk_id_zona: parseInt(formData.fk_id_zona),
+          fk_id_zona: formData.fk_id_zona === "all" ? null : parseInt(formData.fk_id_zona),
           orden: parseInt(formData.orden),
           activo: formData.activo
         }
@@ -154,7 +154,7 @@ export function ProductosDestacadosZonaSection({
         // Modo creación: crear un registro por cada producto seleccionado
         const dataArray = selectedProductos.map((producto, index) => ({
           fk_id_producto: producto.id,
-          fk_id_zona: parseInt(formData.fk_id_zona),
+          fk_id_zona: formData.fk_id_zona === "all" ? null : parseInt(formData.fk_id_zona),
           orden: parseInt(formData.orden) + index,
           activo: formData.activo
         }))
@@ -242,7 +242,7 @@ export function ProductosDestacadosZonaSection({
       return productosDestacados
     }
     return productosDestacados.filter(
-      item => item.fk_id_zona.toString() === selectedZonaFilter
+      item => item.fk_id_zona === null || item.fk_id_zona.toString() === selectedZonaFilter
     )
   }, [productosDestacados, selectedZonaFilter])
 
@@ -316,6 +316,7 @@ export function ProductosDestacadosZonaSection({
                           <SelectValue placeholder="Seleccionar zona" />
                         </SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="all">Todas las zonas</SelectItem>
                           {zonas.map((zona) => (
                             <SelectItem key={zona.id} value={zona.id.toString()}>
                               {zona.nombre}
@@ -553,7 +554,13 @@ export function ProductosDestacadosZonaSection({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium">{zona?.nombre}</span>
+                        <span className="font-medium">
+                          {item.fk_id_zona === null ? (
+                            <span className="text-blue-600">Todas las zonas</span>
+                          ) : (
+                            zona?.nombre
+                          )}
+                        </span>
                       </TableCell>
                       <TableCell>
                         {producto?.codigo && (

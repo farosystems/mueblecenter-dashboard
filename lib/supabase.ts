@@ -217,7 +217,7 @@ export interface ProductoDestacadoZona {
   id: number
   created_at: string
   fk_id_producto: number
-  fk_id_zona: number
+  fk_id_zona: number | null
   orden: number
   activo: boolean
   producto?: Producto
