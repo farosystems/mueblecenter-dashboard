@@ -174,6 +174,9 @@ export interface ConfiguracionWeb {
   banner_2: string | null
   banner_3: string | null
   banner_principal: string | null
+  banner_link: string | null
+  banner_2_link: string | null
+  banner_3_link: string | null
   seccion_bienvenidos: boolean
 }
 

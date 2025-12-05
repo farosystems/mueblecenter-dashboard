@@ -15,13 +15,14 @@ import Image from "next/image"
 
 interface BannerConfigProps {
   configuracionWeb: ConfiguracionWeb | null
-  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal' | 'seccion_bienvenidos'>>) => Promise<any>
+  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal' | 'banner_link' | 'banner_2_link' | 'banner_3_link' | 'seccion_bienvenidos'>>) => Promise<any>
 }
 
 type BannerKey = 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'
 
 interface BannerState {
   url: string
+  link: string
   isDragOver: boolean
   isLoading: boolean
 }
@@ -32,34 +33,38 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
   const [activeBanner, setActiveBanner] = useState<BannerKey>('banner')
   
   const [banners, setBanners] = useState<Record<BannerKey, BannerState>>({
-    banner: { url: "", isDragOver: false, isLoading: false },
-    banner_2: { url: "", isDragOver: false, isLoading: false },
-    banner_3: { url: "", isDragOver: false, isLoading: false },
-    banner_principal: { url: "", isDragOver: false, isLoading: false }
+    banner: { url: "", link: "", isDragOver: false, isLoading: false },
+    banner_2: { url: "", link: "", isDragOver: false, isLoading: false },
+    banner_3: { url: "", link: "", isDragOver: false, isLoading: false },
+    banner_principal: { url: "", link: "", isDragOver: false, isLoading: false }
   })
 
   useEffect(() => {
     if (configuracionWeb) {
       setBanners({
-        banner: { 
-          url: configuracionWeb.banner || "", 
-          isDragOver: false, 
-          isLoading: false 
+        banner: {
+          url: configuracionWeb.banner || "",
+          link: configuracionWeb.banner_link || "",
+          isDragOver: false,
+          isLoading: false
         },
-        banner_2: { 
-          url: configuracionWeb.banner_2 || "", 
-          isDragOver: false, 
-          isLoading: false 
+        banner_2: {
+          url: configuracionWeb.banner_2 || "",
+          link: configuracionWeb.banner_2_link || "",
+          isDragOver: false,
+          isLoading: false
         },
-        banner_3: { 
-          url: configuracionWeb.banner_3 || "", 
-          isDragOver: false, 
-          isLoading: false 
+        banner_3: {
+          url: configuracionWeb.banner_3 || "",
+          link: configuracionWeb.banner_3_link || "",
+          isDragOver: false,
+          isLoading: false
         },
-        banner_principal: { 
-          url: configuracionWeb.banner_principal || "", 
-          isDragOver: false, 
-          isLoading: false 
+        banner_principal: {
+          url: configuracionWeb.banner_principal || "",
+          link: "",
+          isDragOver: false,
+          isLoading: false
         }
       })
     }
@@ -135,11 +140,14 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
   }
 
   const handleSave = async () => {
-    const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>> = {
+    const updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal' | 'banner_link' | 'banner_2_link' | 'banner_3_link'>> = {
       banner: banners.banner.url || null,
       banner_2: banners.banner_2.url || null,
       banner_3: banners.banner_3.url || null,
-      banner_principal: banners.banner_principal.url || null
+      banner_principal: banners.banner_principal.url || null,
+      banner_link: banners.banner.link || null,
+      banner_2_link: banners.banner_2.link || null,
+      banner_3_link: banners.banner_3.link || null
     }
 
     try {
@@ -198,7 +206,7 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
 
   const renderBannerTab = (bannerKey: BannerKey) => {
     const bannerState = banners[bannerKey]
-    
+
     return (
       <div className="space-y-4">
         <div className="flex gap-2">
@@ -271,6 +279,23 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
           </div>
         )}
 
+        {/* Campo para URL de redirección - Solo para banner, banner_2 y banner_3 */}
+        {bannerKey !== 'banner_principal' && (
+          <div className="space-y-2 pt-4 border-t">
+            <Label htmlFor={`bannerLink-${bannerKey}`}>URL de redirección (opcional)</Label>
+            <Input
+              id={`bannerLink-${bannerKey}`}
+              type="url"
+              placeholder="https://ejemplo.com/pagina-destino"
+              value={bannerState.link}
+              onChange={(e) => updateBannerState(bannerKey, { link: e.target.value })}
+            />
+            <p className="text-xs text-gray-500">
+              El banner redirigirá a esta URL cuando se haga clic en él
+            </p>
+          </div>
+        )}
+
         {bannerState.url && (
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -297,6 +322,11 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
                 }}
               />
             </div>
+            {bannerState.link && bannerKey !== 'banner_principal' && (
+              <p className="text-xs text-gray-600">
+                🔗 Redirige a: <span className="text-blue-600 break-all">{bannerState.link}</span>
+              </p>
+            )}
           </div>
         )}
       </div>
