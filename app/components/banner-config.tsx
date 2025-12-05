@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { supabase } from "@/lib/supabase"
 import { ConfiguracionWeb } from "@/lib/supabase"
@@ -14,7 +15,7 @@ import Image from "next/image"
 
 interface BannerConfigProps {
   configuracionWeb: ConfiguracionWeb | null
-  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'>>) => Promise<any>
+  onUpdateConfiguracionWeb: (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal' | 'seccion_bienvenidos'>>) => Promise<any>
 }
 
 type BannerKey = 'banner' | 'banner_2' | 'banner_3' | 'banner_principal'
@@ -549,6 +550,37 @@ export function BannerConfig({ configuracionWeb, onUpdateConfiguracionWeb }: Ban
                 </div>
               )}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sección Bienvenidos */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Sección Bienvenidos
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="seccion-bienvenidos">Mostrar sección de bienvenidos en la Home</Label>
+              <p className="text-sm text-gray-500">
+                Activa o desactiva la sección de bienvenidos en la página principal
+              </p>
+            </div>
+            <Switch
+              id="seccion-bienvenidos"
+              checked={configuracionWeb?.seccion_bienvenidos ?? true}
+              onCheckedChange={async (checked) => {
+                try {
+                  await onUpdateConfiguracionWeb({ seccion_bienvenidos: checked })
+                } catch (error) {
+                  console.error('Error al actualizar sección bienvenidos:', error)
+                  alert('Error al actualizar la configuración')
+                }
+              }}
+            />
           </div>
         </CardContent>
       </Card>

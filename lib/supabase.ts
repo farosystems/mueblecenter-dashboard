@@ -174,6 +174,7 @@ export interface ConfiguracionWeb {
   banner_2: string | null
   banner_3: string | null
   banner_principal: string | null
+  seccion_bienvenidos: boolean
 }
 
 // Tipo para stock por sucursales

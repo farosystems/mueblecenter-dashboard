@@ -1503,7 +1503,7 @@ export function useSupabaseData() {
   }
 
   // Actualizar configuración web
-  const updateConfiguracionWeb = async (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3'>>) => {
+  const updateConfiguracionWeb = async (updates: Partial<Pick<ConfiguracionWeb, 'banner' | 'banner_2' | 'banner_3' | 'banner_principal' | 'seccion_bienvenidos'>>) => {
     try {
       let { data, error } = await supabase
         .from('configuracion_web')

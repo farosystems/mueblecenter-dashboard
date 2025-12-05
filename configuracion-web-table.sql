@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS public.configuracion_web (
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now(),
   banner text null, -- URL de la imagen del banner
+  seccion_bienvenidos boolean not null default true, -- Mostrar/ocultar sección de bienvenidos
   constraint configuracion_web_pkey primary key (id)
 ) TABLESPACE pg_default;
 
