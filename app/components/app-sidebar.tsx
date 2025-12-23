@@ -1,6 +1,6 @@
 "use client"
 
-import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight, Layers, GitBranch, Grid3x3, Star } from "lucide-react"
+import { Package, CreditCard, Link2, BarChart3, Tag, Award, Settings, MapPin, Warehouse, Bot, Users, ShoppingCart, ChevronRight, Layers, GitBranch, Grid3x3, Star, TrendingUp } from "lucide-react"
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +25,11 @@ const menuItems = [
     title: "Dashboard",
     icon: BarChart3,
     url: "#dashboard",
+  },
+  {
+    title: "Estadísticas",
+    icon: TrendingUp,
+    url: "#estadisticas",
   },
   {
     title: "Productos",

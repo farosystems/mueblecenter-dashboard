@@ -21,6 +21,7 @@ import { PedidosSection } from "./components/pedidos-section"
 import { PresentacionesSection } from "./components/presentaciones-section"
 import { LineasSection } from "./components/lineas-section"
 import { TiposSection } from "./components/tipos-section"
+import EstadisticasSection from "./components/estadisticas-section"
 import { useSupabaseData } from "./hooks/use-supabase-data"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
@@ -180,6 +181,8 @@ function Dashboard() {
         return "Clientes"
       case "agente-pedidos":
         return "Pedidos"
+      case "estadisticas":
+        return "Estadísticas"
       default:
         return "Dashboard"
     }
@@ -378,7 +381,7 @@ function Dashboard() {
         )
       case "agente-pedidos":
         return (
-          <PedidosSection 
+          <PedidosSection
             pedidos={[]} // TODO: Add real data from Supabase
             clientes={[]} // TODO: Add real data from Supabase
             onCreatePedido={async (pedido) => {
@@ -399,6 +402,8 @@ function Dashboard() {
             }}
           />
         )
+      case "estadisticas":
+        return <EstadisticasSection />
       default:
         return <DashboardSection productos={productos} planes={planes} productosPorPlan={productosPorPlan} />
     }

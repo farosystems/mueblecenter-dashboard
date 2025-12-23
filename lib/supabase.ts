@@ -226,4 +226,74 @@ export interface ProductoDestacadoZona {
   activo: boolean
   producto?: Producto
   zona?: Zona
+}
+
+// Tipos para Analytics
+export interface AnalyticsEvent {
+  id: number
+  created_at: string
+  event_type: string
+  event_data?: Record<string, any>
+  user_id?: string
+  session_id?: string
+  ip_address?: string
+  user_agent?: string
+  fk_id_producto?: number
+  fk_id_zona?: number
+  producto?: Producto
+  zona?: Zona
+}
+
+export interface AnalyticsDailyMetric {
+  id: number
+  date: string
+  event_type: string
+  count: number
+  unique_users: number
+  unique_sessions: number
+  event_data?: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+
+// Tipos de eventos disponibles
+export type EventType =
+  | 'page_view'
+  | 'whatsapp_click'
+  | 'shopping_list_add'
+  | 'shopping_list_remove'
+  | 'product_view'
+  | 'search'
+  | 'plan_view'
+  | 'category_view'
+  | 'brand_view'
+
+// Tipos para filtros de fecha
+export type DateFilter =
+  | 'today'
+  | 'yesterday'
+  | 'last_7_days'
+  | 'last_30_days'
+  | 'custom'
+
+export interface DateRange {
+  startDate: Date
+  endDate: Date
+}
+
+// Tipo para estadísticas agregadas
+export interface AnalyticsSummary {
+  totalEvents: number
+  uniqueUsers: number
+  uniqueSessions: number
+  eventsByType: Record<string, number>
+  topProducts: Array<{
+    producto_id: number
+    producto_nombre: string
+    count: number
+  }>
+  eventsByDate: Array<{
+    date: string
+    count: number
+  }>
 } 
